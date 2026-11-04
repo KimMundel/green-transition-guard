@@ -1,4 +1,4 @@
-# GREEN Transition Guard - experimental v0.1.6
+# GREEN Transition Guard - experimental v0.1.7
 
 An **independent, unendorsed** reference simulation for evaluating power-state
 transition frequency and dwell constraints relevant to the IETF GREEN work.
@@ -244,3 +244,17 @@ as inconclusive, avoiding a false physical-state contradiction.
 
 YANG source is unchanged in this iteration; no vendor telemetry is added to
 the GREEN wire model until provenance and formal YANG compilation are verified.
+
+
+## v0.1.7 — storage failure boundary tests
+
+- Improved `SnapshotStore.save()` cleanup when conversion of a freshly
+  allocated temporary file descriptor to a text stream fails.
+- Added 49 deterministic fault-injection cases covering initial snapshot
+  creation, replacement writes, controller dispatch markers, actuator-ledger
+  persistence, reconciliation and the logical quota guard.
+- An exception after atomic replacement has **ambiguous physical durability**.
+  The experimental physical guard never retries a possibly dispatched command
+  automatically. See `docs/storage-fault-injection.md`.
+- These tests simulate in-process errors on a POSIX filesystem; no power-loss
+  or genuine hardware testing has been performed.

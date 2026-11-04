@@ -13,7 +13,7 @@
 
 ## P1 — correctness under adverse conditions
 
-- [ ] Fault-inject disk errors around every atomic snapshot step
+- [x] Inject in-process errors across initialization/replacement I/O boundaries (v0.1.7); real power-loss tests remain open
 - [x] Research crash/actuation state model and failure matrix (docs only)
 - [x] Implement **simulated** persistent physical-transition state machine with fault injection (v0.1.2); real adapter pending
 - [x] Research clock evidence contract and uncertainty tests (experimental)
@@ -101,3 +101,16 @@ realistic clock and failure assumptions.
   guarantees; synthetic fixtures do not establish production eligibility.
 - [ ] Validate experimental YANG with official imports; read-only provenance
   leaf proposal remains deferred until implementer feedback.
+
+
+## v0.1.7 persistence boundary tests
+
+- [x] Simulate `mkstemp`, `fdopen`, partial writes, flush, file fsync,
+      before/after rename, directory open/fsync, and exclusive-create failures.
+- [x] Verify old/new snapshot integrity, temporary-file cleanup, no automatic
+      resend after ambiguous dispatch, eventual reconciliation and quota replay.
+- [x] Close the temporary descriptor when `fdopen` fails; regression added.
+- [ ] Validate real system crashes, storage ordering and flush durability on
+      a specific filesystem and hardware platform.
+- [ ] Add fault-injection at process termination, transport duplication, and
+      external physical-edge source failures.
