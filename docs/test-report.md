@@ -139,3 +139,17 @@ complete physical state-edge counters.
 `diagnostic-source-only` for both fictional Intel and NVMe fixtures. No
 networking/storage hardware was read, manipulated or tested. The existing
 experimental YANG module was not changed or compiled.
+
+
+## v0.1.7 storage fault-injection tests (2026-11-05)
+
+Command: `PYTHONPATH=src python3 -m pytest -q`.
+
+**220 tests passed**, comprising all 171 v0.1.6 regressions and 49 new
+local I/O-failure tests. Scenarios cover exclusive initial creation,
+truncated snapshots, temporary-file descriptor allocation/cleanup, flush,
+file fsync, atomic replacement, directory open/fsync, uncertain dispatch
+markers, actuator ledger writes, delayed reconciliation, and logical quota
+replay. These are deterministic process-level injections, not real power-loss
+tests. In-process file visibility after `os.replace` does not establish
+on-media durability after an I/O error. No real hardware was used.

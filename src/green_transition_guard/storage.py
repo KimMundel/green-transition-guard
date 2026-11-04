@@ -76,7 +76,15 @@ class SnapshotStore:
     def save(self, payload: dict[str, Any]) -> None:
         fd, name = tempfile.mkstemp(prefix=f".{self.path.name}.", dir=self.path.parent)
         try:
-            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            try:
+                handle = os.fdopen(fd, "w", encoding="utf-8")
+            except BaseException:
+                # mkstemp already allocated an fd. If fdopen fails, its
+                # context manager was never entered and cannot close it.
+                with contextlib.suppress(OSError):
+                    os.close(fd)
+                raise
+            with handle:
                 json.dump(wrap(payload), handle, sort_keys=True)
                 handle.flush()
                 os.fsync(handle.fileno())
