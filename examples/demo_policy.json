@@ -1,0 +1,8 @@
+{
+  "states": ["on", "sleep", "off"],
+  "edges": [["on", "sleep"], ["sleep", "on"], ["on", "off"], ["off", "on"]],
+  "min_dwell_ms": {"on": 5000, "sleep": 5000, "off": 30000},
+  "min_interval_ms": 2000,
+  "window_ms": 60000,
+  "max_transitions": 3
+}

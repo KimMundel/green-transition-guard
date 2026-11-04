@@ -1,0 +1,5 @@
+NIC statistics:
+    rx_packets: 100000
+    tx_packets: 95000
+    tx_lpi_counter: 17
+    rx_lpi_counter: 9

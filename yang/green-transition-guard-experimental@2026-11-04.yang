@@ -1,0 +1,133 @@
+module green-transition-guard-experimental {
+  yang-version 1.1;
+  namespace "urn:example:green:transition-guard:experimental";
+  prefix gtg;
+
+  import ietf-power-and-energy {
+    prefix eo;
+    revision-date 2026-11-01;
+  }
+
+  organization
+    "Independent GREEN transition-safety research experiment";
+  description
+    "Experimental, optional read-only information attached to the
+     existing GREEN operational Energy Object. This is an unapproved
+     research module. It is not an IETF standard, does not change
+     requested or observed Power State leaves, and gives no vendor
+     hardware safety guarantee.";
+
+  revision 2026-11-04 {
+    description
+      "Initial experiment for simulation-only transition accounting.";
+  }
+
+  augment "/eo:energy-objects/eo:energy-object" {
+    description
+      "Additional status for a GREEN Energy Object, reusing its id.";
+
+    container transition-safety {
+      config false;
+      description
+        "Simulation-only constraints and reconciliation diagnostics.
+         This subtree has no configuration authority, no actuation,
+         and no claim of authentic hardware or time evidence.";
+
+      leaf operation-phase {
+        type enumeration {
+          enum idle;
+          enum prepared;
+          enum may-have-dispatched;
+          enum acknowledged;
+          enum unresolved;
+        }
+        description
+          "The local guard operation phase. An acknowledgment does
+           not prove that a physical transition completed.";
+      }
+
+      leaf quarantine-reason {
+        type enumeration {
+          enum physical-divergence;
+          enum clock-inconsistent;
+        }
+        description
+          "The reason automation was quarantined, when applicable.";
+      }
+
+      leaf simulated-ledger-status {
+        type enumeration {
+          enum matched-simulation;
+          enum pending-confirmation-simulation;
+          enum divergent-simulation;
+        }
+        description
+          "Consistency between two simulated journals. This field
+           is never evidence of hardware attestation.";
+      }
+
+      leaf clock-evidence-kind {
+        type enumeration {
+          enum local-epoch-bounds;
+          enum asserted-absolute-bounds;
+        }
+        description
+          "Clock evidence supplied to the lab. 'asserted' means
+           an external caller claimed bounded absolute time; the
+           lab does not authenticate or acquire that source.";
+      }
+
+      leaf confirmed-edge-count {
+        type uint64;
+        description
+          "Count reconciled by the experimental guard journal.
+           External events or unreconciled edges are excluded.";
+      }
+
+      container applied-limits {
+        description
+          "Illustrative guard policy currently applied in this
+           simulator; no manufacturer-backed limits are claimed.";
+
+        leaf minimum-interval-ms {
+          type uint64;
+          units "milliseconds";
+          description
+            "Minimum elapsed time between reconciled edges.";
+        }
+        leaf window-ms {
+          type uint64 {
+            range "1..max";
+          }
+          units "milliseconds";
+          description
+            "Length of the rolling transition-count window.";
+        }
+        leaf maximum-transitions {
+          type uint64;
+          description
+            "Maximum reconciled transitions inside the window.";
+        }
+        list dwell-restriction {
+          key "state";
+          description
+            "Per-state residence constraint. Every state value
+             must be a valid GREEN Power State identityref.";
+          leaf state {
+            type identityref {
+              base eo:power-state;
+            }
+            description
+              "An existing or derived GREEN power-state identity.";
+          }
+          leaf minimum-dwell-ms {
+            type uint64;
+            units "milliseconds";
+            description
+              "Required minimum residence in this state.";
+          }
+        }
+      }
+    }
+  }
+}
