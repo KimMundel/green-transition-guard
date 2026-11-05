@@ -153,3 +153,18 @@ markers, actuator ledger writes, delayed reconciliation, and logical quota
 replay. These are deterministic process-level injections, not real power-loss
 tests. In-process file visibility after `os.replace` does not establish
 on-media durability after an I/O error. No real hardware was used.
+
+
+## v0.1.8 policy upgrade tests (2026-11-05)
+
+Command: `PYTHONPATH=src python3 -m pytest -q`.
+
+**252 tests passed** (220 baseline + 32 new). Added legacy schema
+compatibility, history-preserving migration, historical edge validation,
+quota/window re-evaluation, dwell/interval changes, replays, concurrent
+updates, stale policy revision preconditions, first-update disk errors,
+post-replace uncertainty, CLI behavior and malformed epoch ledger rejection.
+
+These are deterministic single-host simulated tests. No external device,
+actual power-loss testing, trust anchor or authenticated policy rollout was
+used or validated.

@@ -24,6 +24,13 @@ def main() -> int:
     request.add_argument("--request-id", required=True)
     request.add_argument("--time-ms", type=int, required=True)
     request.add_argument("--expected-revision", type=int)
+    request.add_argument("--expected-policy-revision", type=int)
+    update = sub.add_parser("update-policy", help="activate a new simulated policy without resetting history")
+    update.add_argument("--store", required=True)
+    update.add_argument("--policy", required=True, help="new JSON policy path")
+    update.add_argument("--update-id", required=True, help="unique idempotency key")
+    update.add_argument("--time-ms", type=int, required=True)
+    update.add_argument("--expected-policy-revision", type=int, required=True)
     args = parser.parse_args()
     try:
         if args.cmd == "init":
@@ -38,10 +45,20 @@ def main() -> int:
             guard = TransitionGuard.open(args.store)
             if args.cmd == "status":
                 out = guard.status()
+            elif args.cmd == "update-policy":
+                with open(args.policy, encoding="utf-8") as f:
+                    new_policy = Policy.from_dict(json.load(f))
+                revision = guard.update_policy(
+                    new_policy=new_policy, update_id=args.update_id,
+                    at_ms=args.time_ms,
+                    expected_policy_revision=args.expected_policy_revision,
+                )
+                out = {"policy_revision": revision, "status": guard.status()}
             else:
                 out = guard.request(target=args.target, request_id=args.request_id,
                                     at_ms=args.time_ms,
-                                    expected_revision=args.expected_revision).to_dict()
+                                    expected_revision=args.expected_revision,
+                                    expected_policy_revision=args.expected_policy_revision).to_dict()
         print(json.dumps(out, indent=2, sort_keys=True))
         return 0
     except (OSError, ValueError, RuntimeError) as exc:

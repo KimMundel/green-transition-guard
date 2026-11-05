@@ -38,8 +38,11 @@ interval, rate. Rejected requests still update the last observed clock value.
   transition. No-op request IDs are also persisted.
 - Clock regression, lost or invalid storage, and unsupported schema reject
   processing (fail closed).
-- The event log is intentionally unbounded in the MVP. Safe compaction and
-  policy update semantics are future research questions.
+- The event log and policy-update log remain unbounded. Safe compaction is
+  an open research question. v0.1.8 introduces simulated policy epochs with
+  state identity preservation and historical event revision cutoffs; see
+  `docs/policy-migration.md`. These semantics are exploratory rather than
+  a standardized or authenticated policy rollout.
 
 ## Open research questions (must resolve before any standards proposal)
 

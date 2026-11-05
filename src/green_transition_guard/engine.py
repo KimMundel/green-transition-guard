@@ -4,6 +4,7 @@ Scope: accepted transitions are simulated state changes. No physical
 actuation, authentication, redundancy, or trusted clock implementation.
 """
 from collections.abc import Mapping
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -16,25 +17,76 @@ class GuardError(RuntimeError):
 
 
 def _validate_payload(p: dict[str, Any]) -> Policy:
+    """Validate both legacy immutable journals and journals with policy epochs.
+
+    A policy update applies *after* the recorded event revision, so history is
+    checked against the rules active at acceptance rather than today's rules.
+    The active policy still evaluates the entire retained transition history.
+    """
     required = {"schema", "device_id", "policy", "initial_state", "initial_entered_ms", "state", "entered_ms", "last_checked_ms", "revision", "events", "noops"}
-    if set(p) != required or p.get("schema") != 1:
+    if not isinstance(p, dict) or type(p.get("schema")) is not int or p["schema"] not in (1, 2):
+        raise InvalidSnapshot("unknown schema or fields")
+    schema = p["schema"]
+    if set(p) != (required if schema == 1 else required | {"initial_policy", "policy_updates"}):
         raise InvalidSnapshot("unknown schema or fields")
     try:
         policy = Policy.from_dict(p["policy"])
+        initial_policy = Policy.from_dict(p["initial_policy"]) if schema == 2 else policy
         if not isinstance(p["device_id"], str) or not p["device_id"]:
             raise ValueError("missing device id")
-        if p["initial_state"] not in policy.states or p["state"] not in policy.states:
+        if p["initial_state"] not in initial_policy.states or p["state"] not in initial_policy.states:
             raise ValueError("unknown state")
         initial = positive_int(p["initial_entered_ms"], "initial_entered_ms")
         entered = positive_int(p["entered_ms"], "entered_ms")
         checked = positive_int(p["last_checked_ms"], "last_checked_ms")
         revision = positive_int(p["revision"], "revision")
+        if checked < initial or entered < initial:
+            raise ValueError("clock earlier than initialization")
         events = p["events"]
         if not isinstance(events, list) or len(events) != revision:
             raise ValueError("event count does not match revision")
+
+        # Parse update boundaries separately. The event cutoff disambiguates
+        # an update and a transition which share the same millisecond.
+        updates = p["policy_updates"] if schema == 2 else []
+        if not isinstance(updates, list):
+            raise ValueError("invalid policy update log")
+        update_ids: set[str] = set()
+        last_cutoff, last_update_ms = 0, initial
+        epoch_policy = initial_policy
+        for index, update in enumerate(updates, 1):
+            if not isinstance(update, dict) or set(update) != {"seq", "id", "at_ms", "after_event_seq", "policy"}:
+                raise ValueError("policy update fields")
+            if type(update["seq"]) is not int or update["seq"] != index:
+                raise ValueError("policy update sequence")
+            update_id = update["id"]
+            if (not isinstance(update_id, str) or not 1 <= len(update_id) <= 256
+                    or update_id in update_ids):
+                raise ValueError("policy update id")
+            update_ids.add(update_id)
+            cutoff = positive_int(update["after_event_seq"], "policy update cutoff")
+            when = positive_int(update["at_ms"], "policy update time")
+            if cutoff < last_cutoff or cutoff > revision or when < last_update_ms or when > checked:
+                raise ValueError("policy update time/order")
+            low = initial if cutoff == 0 else positive_int(events[cutoff - 1]["at_ms"], "event time")
+            high = checked if cutoff == revision else positive_int(events[cutoff]["at_ms"], "event time")
+            if not low <= when <= high:
+                raise ValueError("policy update conflicts with event timeline")
+            epoch_policy = Policy.from_dict(update["policy"])
+            if epoch_policy.states != initial_policy.states:
+                raise ValueError("policy update changed state identities/order")
+            last_cutoff, last_update_ms = cutoff, when
+        if epoch_policy.to_dict() != policy.to_dict():
+            raise ValueError("active policy differs from final epoch")
+
         cur, cur_ts, prev_ts = p["initial_state"], initial, initial
-        request_ids = set()
+        request_ids = set(update_ids)
+        active_policy = initial_policy
+        update_index = 0
         for seq, e in enumerate(events, start=1):
+            while update_index < len(updates) and updates[update_index]["after_event_seq"] == seq - 1:
+                active_policy = Policy.from_dict(updates[update_index]["policy"])
+                update_index += 1
             if not isinstance(e, dict) or set(e) != {"seq", "id", "request_id", "from", "to", "at_ms"}:
                 raise ValueError("event fields")
             ts = positive_int(e["at_ms"], "at_ms")
@@ -43,7 +95,7 @@ def _validate_payload(p: dict[str, Any]) -> Policy:
             if not isinstance(e["request_id"], str) or not e["request_id"] or e["request_id"] in request_ids:
                 raise ValueError("event request id")
             request_ids.add(e["request_id"])
-            if ts < prev_ts or e["from"] != cur or (e["from"], e["to"]) not in policy.edges:
+            if ts < prev_ts or e["from"] != cur or (e["from"], e["to"]) not in active_policy.edges:
                 raise ValueError("invalid event history")
             prev_ts, cur, cur_ts = ts, e["to"], ts
         if cur != p["state"] or cur_ts != entered or checked < prev_ts:
@@ -67,7 +119,7 @@ def _validate_payload(p: dict[str, Any]) -> Policy:
             high = checked if r == revision else events[r]["at_ms"]
             if entry["target"] != state_at_revision or not (low <= t <= high):
                 raise ValueError("inconsistent noop history")
-    except (ValueError, TypeError, KeyError) as exc:
+    except (ValueError, TypeError, KeyError, IndexError) as exc:
         raise InvalidSnapshot("invalid snapshot contents; fail closed") from exc
     return policy
 
@@ -129,6 +181,7 @@ class TransitionGuard:
                 "transitions": len(payload["events"]),
                 "noops": len(payload["noops"]),
                 "policy": payload["policy"],
+                "policy_revision": len(payload["policy_updates"]) if payload["schema"] == 2 else 0,
             }
 
     def history(self) -> tuple[Mapping[str, Any], ...]:
@@ -137,6 +190,81 @@ class TransitionGuard:
             _validate_payload(payload)
             return tuple(dict(e) for e in payload["events"])
 
+    def policy_history(self) -> dict[str, Any]:
+        """Return a detached copy of the original policy and each activation.
+
+        Policy transitions are logically ordered by the event revision cutoff.
+        """
+        with self.store.lock():
+            payload = self.store.read()
+            _validate_payload(payload)
+            return deepcopy({
+                "initial_policy": payload["initial_policy"] if payload["schema"] == 2 else payload["policy"],
+                "updates": payload["policy_updates"] if payload["schema"] == 2 else [],
+            })
+
+    def update_policy(
+        self,
+        *,
+        new_policy: Policy,
+        update_id: str,
+        at_ms: int,
+        expected_policy_revision: int,
+    ) -> int:
+        """Atomically activate a new simulation policy, keeping every past edge.
+
+        A policy update cannot rename/reorder states. Existing events are
+        retained and count against the newly active time window and quota.
+        Identical update-ID replays return their previously committed revision.
+        This method has NO authentication layer or physical actuation authority.
+        """
+        if not isinstance(new_policy, Policy):
+            raise ValueError("new_policy must be a Policy")
+        if not isinstance(update_id, str) or not 1 <= len(update_id) <= 256:
+            raise ValueError("update_id must contain 1..256 characters")
+        positive_int(at_ms, "at_ms")
+        positive_int(expected_policy_revision, "expected_policy_revision")
+        policy_dict = new_policy.to_dict()
+        with self.store.lock():
+            p = self.store.read()
+            current_policy = _validate_payload(p)
+            if at_ms < p["last_checked_ms"]:
+                raise GuardError("policy update clock regression")
+            updates = p["policy_updates"] if p["schema"] == 2 else []
+            for update in updates:
+                if update["id"] == update_id:
+                    if update["policy"] != policy_dict:
+                        raise GuardError("policy update ID collision")
+                    # A replay is still a new trusted time observation.
+                    p["last_checked_ms"] = at_ms
+                    self.store.save(p)
+                    return update["seq"]
+            if any(e["request_id"] == update_id for e in p["events"]) or any(
+                n["request_id"] == update_id for n in p["noops"]
+            ):
+                raise GuardError("policy update ID collision")
+            if expected_policy_revision != len(updates):
+                raise GuardError("stale policy revision")
+            if new_policy.states != current_policy.states:
+                raise GuardError("state identifiers/order must remain unchanged")
+            if p["schema"] == 1:
+                p["schema"] = 2
+                p["initial_policy"] = deepcopy(p["policy"])
+                p["policy_updates"] = []
+            new_revision = len(p["policy_updates"]) + 1
+            p["policy_updates"].append({
+                "seq": new_revision,
+                "id": update_id,
+                "at_ms": at_ms,
+                "after_event_seq": p["revision"],
+                "policy": policy_dict,
+            })
+            p["policy"] = policy_dict
+            p["last_checked_ms"] = at_ms
+            _validate_payload(p)
+            self.store.save(p)
+            return new_revision
+
     def request(
         self,
         *,
@@ -144,6 +272,7 @@ class TransitionGuard:
         request_id: str,
         at_ms: int,
         expected_revision: int | None = None,
+        expected_policy_revision: int | None = None,
     ) -> Decision:
         """Attempt a simulated transition; persist each time observation.
 
@@ -157,6 +286,8 @@ class TransitionGuard:
         positive_int(at_ms, "at_ms")
         if expected_revision is not None:
             positive_int(expected_revision, "expected_revision")
+        if expected_policy_revision is not None:
+            positive_int(expected_policy_revision, "expected_policy_revision")
         with self.store.lock():
             p = self.store.read()
             policy = _validate_payload(p)
@@ -183,8 +314,14 @@ class TransitionGuard:
                     self.store.save(p)
                     return Decision(True, Reason.REPLAY, current, revision)
 
+            if p["schema"] == 2 and any(u["id"] == request_id for u in p["policy_updates"]):
+                return denied(Reason.REQUEST_ID_COLLISION)
             if expected_revision is not None and expected_revision != revision:
                 return denied(Reason.STALE_REVISION)
+            if expected_policy_revision is not None and expected_policy_revision != (
+                len(p["policy_updates"]) if p["schema"] == 2 else 0
+            ):
+                return denied(Reason.STALE_POLICY_REVISION)
             if target not in policy.states:
                 return denied(Reason.UNKNOWN_STATE)
             if target == current:

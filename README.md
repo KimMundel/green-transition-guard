@@ -1,4 +1,4 @@
-# GREEN Transition Guard - experimental v0.1.7
+# GREEN Transition Guard - experimental v0.1.8
 
 An **independent, unendorsed** reference simulation for evaluating power-state
 transition frequency and dwell constraints relevant to the IETF GREEN work.
@@ -258,3 +258,20 @@ the GREEN wire model until provenance and formal YANG compilation are verified.
   automatically. See `docs/storage-fault-injection.md`.
 - These tests simulate in-process errors on a POSIX filesystem; no power-loss
   or genuine hardware testing has been performed.
+
+
+## v0.1.8 — policy epochs and history-preserving migration
+
+The simulated `TransitionGuard.update_policy()` can now activate a revised
+policy while preserving the entire transition/no-op journal. Historical edges
+are validated against the policy active at their acceptance. The new policy's
+window and quota are checked against **all historical transitions**, preventing
+migration from resetting quotas. A separate `policy_revision` and optional
+request precondition defend against stale configuration assumptions.
+
+Legacy schema-1 journals remain readable. The first policy update converts
+one to schema 2; older readers cannot open it afterward. See
+[`docs/policy-migration.md`](docs/policy-migration.md) for the CLI, exact
+migration constraints, fail-closed behavior, and production limitations.
+This is an unauthenticated simulation API; live hardware updates are out of
+scope.
