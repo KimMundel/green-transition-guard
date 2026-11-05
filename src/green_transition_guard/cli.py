@@ -34,6 +34,12 @@ def main() -> int:
     retention = sub.add_parser("retention-plan", help="read-only quota-history projection; never deletes events")
     retention.add_argument("--store", required=True)
     retention.add_argument("--max-window-ms", type=int, required=True)
+    seal = sub.add_parser("seal-window", help="one-way durable bound for future policy windows")
+    seal.add_argument("--store", required=True)
+    seal.add_argument("--max-window-ms", type=int, required=True)
+    seal.add_argument("--install-id", required=True)
+    seal.add_argument("--time-ms", type=int, required=True)
+    seal.add_argument("--expected-policy-revision", type=int, required=True)
     args = parser.parse_args()
     try:
         if args.cmd == "init":
@@ -52,6 +58,13 @@ def main() -> int:
                 out = guard.quota_retention_view(
                     max_future_window_ms=args.max_window_ms
                 ).to_dict()
+            elif args.cmd == "seal-window":
+                ceiling = guard.seal_window_ceiling(
+                    max_future_window_ms=args.max_window_ms,
+                    install_id=args.install_id, at_ms=args.time_ms,
+                    expected_policy_revision=args.expected_policy_revision,
+                )
+                out = {"window_ceiling_ms": ceiling, "status": guard.status()}
             elif args.cmd == "update-policy":
                 with open(args.policy, encoding="utf-8") as f:
                     new_policy = Policy.from_dict(json.load(f))

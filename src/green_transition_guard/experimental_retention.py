@@ -1,9 +1,9 @@
-"""Read-only quota-history retention proof for a hypothetical bounded window.
+"""Read-only quota-history retention proof for a bounded future window.
 
-This projection NEVER deletes or rewrites persisted events. Its results are
-valid only while future policy windows stay at or below the supplied ceiling
-and the caller's clock never moves backwards. The live guard does not yet
-persist or enforce such a ceiling, so deletion is intentionally unavailable.
+This projection NEVER deletes or rewrites persisted events. Its result is
+conditional on future policy windows remaining within the supplied ceiling
+and a nondecreasing clock. v0.1.10 can seal that premise in the journal;
+compaction stays disabled for independent replay and checkpoint obligations.
 """
 from bisect import bisect_right
 from dataclasses import dataclass, field
@@ -20,6 +20,7 @@ class QuotaRetentionView:
     expired_for_quota: int
     last_transition_ms: int | None
     _retained_times: tuple[int, ...] = field(repr=False)
+    enforced_ceiling_ms: int | None = None
 
     @property
     def retained_for_quota(self) -> int:
@@ -57,18 +58,28 @@ class QuotaRetentionView:
             "retained_for_quota": self.retained_for_quota,
             "last_transition_ms": self.last_transition_ms,
             "journal_compaction_enabled": False,
-            "unresolved_dependencies": [
-                "enforce future policy-window ceiling",
+            "enforced_ceiling_ms": self.enforced_ceiling_ms,
+            "retention_bound_enforced": (
+                self.enforced_ceiling_ms is not None
+                and self.enforced_ceiling_ms <= self.max_future_window_ms
+            ),
+            "unresolved_dependencies": (
+                ([] if self.enforced_ceiling_ms is not None
+                  and self.enforced_ceiling_ms <= self.max_future_window_ms
+                  else ["enforce future policy-window ceiling"])
+                + [
                 "preserve global request ID deduplication and replay behavior",
                 "preserve historical policy-epoch and event-chain validation",
                 "preserve last-transition time for arbitrary future interval limits",
                 "bound or deliberately fail closed on unbounded operation volume",
-            ],
+                ]
+            ),
         }
 
 
 def build_quota_retention_view(
-    events: list[Mapping[str, Any]], *, as_of_ms: int, max_future_window_ms: int
+    events: list[Mapping[str, Any]], *, as_of_ms: int, max_future_window_ms: int,
+    enforced_ceiling_ms: int | None = None,
 ) -> QuotaRetentionView:
     """Find a quota-irrelevant event prefix, with a proof restricted to future windows.
 
@@ -77,6 +88,8 @@ def build_quota_retention_view(
     """
     positive_int(as_of_ms, "as_of_ms")
     positive_int(max_future_window_ms, "max_future_window_ms", allow_zero=False)
+    if enforced_ceiling_ms is not None:
+        positive_int(enforced_ceiling_ms, "enforced_ceiling_ms", allow_zero=False)
     if not isinstance(events, list):
         raise ValueError("events must be a list")
     times: list[int] = []
@@ -98,4 +111,5 @@ def build_quota_retention_view(
         expired_for_quota=first_retained,
         last_transition_ms=times[-1] if times else None,
         _retained_times=tuple(times[first_retained:]),
+        enforced_ceiling_ms=enforced_ceiling_ms,
     )

@@ -18,21 +18,24 @@ class GuardError(RuntimeError):
 
 
 def _validate_payload(p: dict[str, Any]) -> Policy:
-    """Validate both legacy immutable journals and journals with policy epochs.
+    """Validate legacy journals, policy epochs, and sealed window ceilings.
 
     A policy update applies *after* the recorded event revision, so history is
     checked against the rules active at acceptance rather than today's rules.
     The active policy still evaluates the entire retained transition history.
     """
     required = {"schema", "device_id", "policy", "initial_state", "initial_entered_ms", "state", "entered_ms", "last_checked_ms", "revision", "events", "noops"}
-    if not isinstance(p, dict) or type(p.get("schema")) is not int or p["schema"] not in (1, 2):
+    if not isinstance(p, dict) or type(p.get("schema")) is not int or p["schema"] not in (1, 2, 3):
         raise InvalidSnapshot("unknown schema or fields")
     schema = p["schema"]
-    if set(p) != (required if schema == 1 else required | {"initial_policy", "policy_updates"}):
+    expected_fields = required if schema == 1 else required | {"initial_policy", "policy_updates"}
+    if schema == 3:
+        expected_fields = expected_fields | {"window_ceiling"}
+    if set(p) != expected_fields:
         raise InvalidSnapshot("unknown schema or fields")
     try:
         policy = Policy.from_dict(p["policy"])
-        initial_policy = Policy.from_dict(p["initial_policy"]) if schema == 2 else policy
+        initial_policy = Policy.from_dict(p["initial_policy"]) if schema >= 2 else policy
         if not isinstance(p["device_id"], str) or not p["device_id"]:
             raise ValueError("missing device id")
         if p["initial_state"] not in initial_policy.states or p["state"] not in initial_policy.states:
@@ -49,7 +52,7 @@ def _validate_payload(p: dict[str, Any]) -> Policy:
 
         # Parse update boundaries separately. The event cutoff disambiguates
         # an update and a transition which share the same millisecond.
-        updates = p["policy_updates"] if schema == 2 else []
+        updates = p["policy_updates"] if schema >= 2 else []
         if not isinstance(updates, list):
             raise ValueError("invalid policy update log")
         update_ids: set[str] = set()
@@ -120,6 +123,42 @@ def _validate_payload(p: dict[str, Any]) -> Policy:
             high = checked if r == revision else events[r]["at_ms"]
             if entry["target"] != state_at_revision or not (low <= t <= high):
                 raise ValueError("inconsistent noop history")
+
+        if schema == 3:
+            # The seal is anchored to BOTH event and policy revision cutoffs.
+            # Consequently the policy active at sealing and every later policy
+            # are constrained, while older epochs may have used larger windows.
+            seal = p["window_ceiling"]
+            if not isinstance(seal, dict) or set(seal) != {
+                "id", "at_ms", "max_window_ms", "after_event_seq", "after_policy_revision"
+            }:
+                raise ValueError("invalid window ceiling record")
+            seal_id = seal["id"]
+            if (not isinstance(seal_id, str) or not 1 <= len(seal_id) <= 256
+                    or seal_id in request_ids):
+                raise ValueError("duplicate or invalid window ceiling ID")
+            ceiling = positive_int(seal["max_window_ms"], "max_window_ms", allow_zero=False)
+            seal_time = positive_int(seal["at_ms"], "window ceiling time")
+            ec = positive_int(seal["after_event_seq"], "window ceiling event cutoff")
+            pc = positive_int(seal["after_policy_revision"], "window ceiling policy cutoff")
+            if ec > revision or pc > len(updates) or not initial <= seal_time <= checked:
+                raise ValueError("invalid window ceiling cutoff")
+            event_before = initial if ec == 0 else events[ec - 1]["at_ms"]
+            event_after = checked if ec == revision else events[ec]["at_ms"]
+            policy_before = initial if pc == 0 else updates[pc - 1]["at_ms"]
+            policy_after = checked if pc == len(updates) else updates[pc]["at_ms"]
+            if not (event_before <= seal_time <= event_after
+                    and policy_before <= seal_time <= policy_after):
+                raise ValueError("window ceiling conflicts with timeline")
+            if any(u["after_event_seq"] > ec for u in updates[:pc]) or any(
+                u["after_event_seq"] < ec for u in updates[pc:]
+            ):
+                raise ValueError("window ceiling conflicts with policy order")
+            policy_at_seal = initial_policy if pc == 0 else Policy.from_dict(updates[pc - 1]["policy"])
+            if policy_at_seal.window_ms > ceiling or any(
+                Policy.from_dict(u["policy"]).window_ms > ceiling for u in updates[pc:]
+            ):
+                raise ValueError("policy window violates durable ceiling")
     except (ValueError, TypeError, KeyError, IndexError) as exc:
         raise InvalidSnapshot("invalid snapshot contents; fail closed") from exc
     return policy
@@ -182,7 +221,10 @@ class TransitionGuard:
                 "transitions": len(payload["events"]),
                 "noops": len(payload["noops"]),
                 "policy": payload["policy"],
-                "policy_revision": len(payload["policy_updates"]) if payload["schema"] == 2 else 0,
+                "policy_revision": len(payload["policy_updates"]) if payload["schema"] >= 2 else 0,
+                "window_ceiling_ms": (
+                    payload["window_ceiling"]["max_window_ms"] if payload["schema"] == 3 else None
+                ),
             }
 
     def history(self) -> tuple[Mapping[str, Any], ...]:
@@ -200,16 +242,15 @@ class TransitionGuard:
             payload = self.store.read()
             _validate_payload(payload)
             return deepcopy({
-                "initial_policy": payload["initial_policy"] if payload["schema"] == 2 else payload["policy"],
-                "updates": payload["policy_updates"] if payload["schema"] == 2 else [],
+                "initial_policy": payload["initial_policy"] if payload["schema"] >= 2 else payload["policy"],
+                "updates": payload["policy_updates"] if payload["schema"] >= 2 else [],
             })
 
     def quota_retention_view(self, *, max_future_window_ms: int) -> QuotaRetentionView:
-        """Read-only analysis of a quota-expired prefix under a hypothetical cap.
+        """Read-only analysis; report whether the requested bound is durably sealed.
 
-        No events or request IDs are removed. A persisted, enforced future
-        window ceiling and a safe replay/history strategy are prerequisites
-        for any actual journal compaction.
+        No events or request IDs are removed. Replay protection, historical
+        checkpoints, and durability proof remain prerequisites for compaction.
         """
         positive_int(max_future_window_ms, "max_future_window_ms", allow_zero=False)
         with self.store.lock():
@@ -220,7 +261,69 @@ class TransitionGuard:
             return build_quota_retention_view(
                 payload["events"], as_of_ms=payload["last_checked_ms"],
                 max_future_window_ms=max_future_window_ms,
+                enforced_ceiling_ms=(
+                    payload["window_ceiling"]["max_window_ms"] if payload["schema"] == 3 else None
+                ),
             )
+
+    def seal_window_ceiling(
+        self,
+        *,
+        max_future_window_ms: int,
+        install_id: str,
+        at_ms: int,
+        expected_policy_revision: int,
+    ) -> int:
+        """Install a one-way, durable future policy-window ceiling.
+
+        This migrates legacy schema 1/2 to schema 3 under the existing journal
+        lock. A sealed ceiling cannot be raised, replaced or removed by the
+        public API. The historical journal and policy epochs stay complete.
+        """
+        positive_int(max_future_window_ms, "max_future_window_ms", allow_zero=False)
+        positive_int(at_ms, "at_ms")
+        positive_int(expected_policy_revision, "expected_policy_revision")
+        if not isinstance(install_id, str) or not 1 <= len(install_id) <= 256:
+            raise ValueError("install_id must contain 1..256 characters")
+        with self.store.lock():
+            p = self.store.read()
+            policy = _validate_payload(p)
+            if at_ms < p["last_checked_ms"]:
+                raise GuardError("window ceiling clock regression")
+            if p["schema"] == 3:
+                seal = p["window_ceiling"]
+                if install_id != seal["id"]:
+                    raise GuardError("window ceiling already sealed")
+                if max_future_window_ms != seal["max_window_ms"]:
+                    raise GuardError("window ceiling install ID collision")
+                # Replay after uncertain post-rename durability: preserve seal.
+                p["last_checked_ms"] = at_ms
+                self.store.save(p)
+                return max_future_window_ms
+            updates = p["policy_updates"] if p["schema"] == 2 else []
+            if any(e["request_id"] == install_id for e in p["events"]) or any(
+                n["request_id"] == install_id for n in p["noops"]
+            ) or any(u["id"] == install_id for u in updates):
+                raise GuardError("window ceiling install ID collision")
+            if expected_policy_revision != len(updates):
+                raise GuardError("stale policy revision")
+            if policy.window_ms > max_future_window_ms:
+                raise GuardError("window ceiling below active policy window")
+            if p["schema"] == 1:
+                p["initial_policy"] = deepcopy(p["policy"])
+                p["policy_updates"] = []
+            p["schema"] = 3
+            p["window_ceiling"] = {
+                "id": install_id,
+                "at_ms": at_ms,
+                "max_window_ms": max_future_window_ms,
+                "after_event_seq": p["revision"],
+                "after_policy_revision": len(p["policy_updates"]),
+            }
+            p["last_checked_ms"] = at_ms
+            _validate_payload(p)
+            self.store.save(p)
+            return max_future_window_ms
 
     def update_policy(
         self,
@@ -249,7 +352,9 @@ class TransitionGuard:
             current_policy = _validate_payload(p)
             if at_ms < p["last_checked_ms"]:
                 raise GuardError("policy update clock regression")
-            updates = p["policy_updates"] if p["schema"] == 2 else []
+            updates = p["policy_updates"] if p["schema"] >= 2 else []
+            if p["schema"] == 3 and update_id == p["window_ceiling"]["id"]:
+                raise GuardError("policy update ID collision with window ceiling")
             for update in updates:
                 if update["id"] == update_id:
                     if update["policy"] != policy_dict:
@@ -266,6 +371,8 @@ class TransitionGuard:
                 raise GuardError("stale policy revision")
             if new_policy.states != current_policy.states:
                 raise GuardError("state identifiers/order must remain unchanged")
+            if p["schema"] == 3 and new_policy.window_ms > p["window_ceiling"]["max_window_ms"]:
+                raise GuardError("policy window exceeds sealed ceiling")
             if p["schema"] == 1:
                 p["schema"] = 2
                 p["initial_policy"] = deepcopy(p["policy"])
@@ -333,12 +440,14 @@ class TransitionGuard:
                     self.store.save(p)
                     return Decision(True, Reason.REPLAY, current, revision)
 
-            if p["schema"] == 2 and any(u["id"] == request_id for u in p["policy_updates"]):
+            if p["schema"] >= 2 and any(u["id"] == request_id for u in p["policy_updates"]):
+                return denied(Reason.REQUEST_ID_COLLISION)
+            if p["schema"] == 3 and request_id == p["window_ceiling"]["id"]:
                 return denied(Reason.REQUEST_ID_COLLISION)
             if expected_revision is not None and expected_revision != revision:
                 return denied(Reason.STALE_REVISION)
             if expected_policy_revision is not None and expected_policy_revision != (
-                len(p["policy_updates"]) if p["schema"] == 2 else 0
+                len(p["policy_updates"]) if p["schema"] >= 2 else 0
             ):
                 return denied(Reason.STALE_POLICY_REVISION)
             if target not in policy.states:

@@ -97,3 +97,12 @@ state bookkeeping. Production clock trust and hardware authority remain open.
 
 All numeric example thresholds are fictional. This is a requirements and
 conformance research model, not a basis for real hardware control.
+
+
+## v0.1.10 bound on future policy windows
+
+A sealed schema-3 journal records an immutable maximum `window_ms` for future
+policies and validates the policy at sealing plus all later epochs. Earlier
+epoch rules remain valid. No event, no-op, or request ID is removed. Logical
+compaction remains disabled pending replay and checkpoint guarantees.
+See `docs/window-ceiling.md`.
