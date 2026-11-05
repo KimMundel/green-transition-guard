@@ -1,4 +1,4 @@
-# GREEN Transition Guard - experimental v0.1.13
+# GREEN Transition Guard - experimental v0.1.14
 
 An **independent, unendorsed** reference simulation for evaluating power-state
 transition frequency and dwell constraints relevant to the IETF GREEN work.
@@ -363,3 +363,22 @@ green-guard seal-budget --store device.guard.json \
 The count ceiling is voluntary and does **not** establish a fixed byte-size or
 rollback-resistant storage bound. Compaction remains disabled. See
 [`docs/operation-budget.md`](docs/operation-budget.md).
+
+
+## v0.1.14 — read-only recovery lineage and external HMAC witness
+
+`checkpoint-lineage --store LIVE --archive ARCHIVE` distinguishes identical,
+append-only, possibly rolled-back and divergent complete histories. It checks
+transition/no-op IDs, policy epochs, immutable seals and monotonic clock
+cutoffs, preserving the original journal and archive.
+
+`checkpoint-witness-issue` / `checkpoint-witness-verify` provide an experimental
+HMAC-SHA256 receipt tied to a verified complete archive. Verification **requires**
+a caller-provided trusted device ID, independently sourced snapshot root and
+independently maintained generation floor. The CLI uses an owner-only local test
+key; it cannot establish the trustworthiness of that key or root.
+
+These diagnostics do **not** restore, activate, compact or authenticate a live
+journal. The independently trusted witness service, rollback-resistant storage,
+secure key management and power-loss testing remain external prerequisites.
+See [`docs/recovery-witness.md`](docs/recovery-witness.md).

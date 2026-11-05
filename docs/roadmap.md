@@ -197,3 +197,21 @@ realistic clock and failure assumptions.
   accepted-identity count alone is insufficient for a fixed storage budget.
 - [ ] Develop authenticated, rollback-resistant checkpoint activation and
   exact historical replay/state guarantees before any physical pruning.
+
+
+## v0.1.14 read-only recovery lineage and witnessed archive
+
+- [x] Compare full histories for append-only ancestry across schema 1/2/3/4,
+      distinguishing identical, older, divergent and different-device sources.
+- [x] Reject retroactive events, no-ops, policy updates and seal installations
+      relative to a previously observed monotonic snapshot clock.
+- [x] Add experimental HMAC-SHA256 archive receipt and strict, externally
+      supplied device/root/generation-floor checks; no raw request IDs in reports.
+- [x] Test unsigned changes, misbound archives, stale generations, schema
+      migrations, local key-file permissions and read-only CLI exit behavior.
+- [ ] Implement and test **independent** monotonic generation authority and
+      external trust-anchor persistence; local test keys do not provide this.
+- [ ] Specify authenticated forward journal state and complete crash-safe
+      activation/recovery before any pruning or live rollback reconstruction.
+- [ ] Bound bytes, independently test hard power loss, and validate real clock,
+      device authorization and hardware behavior.

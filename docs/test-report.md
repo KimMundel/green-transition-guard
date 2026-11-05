@@ -245,3 +245,21 @@ This bounds the number of accepted identities in **opt-in** schema-4 simulations
 only; source history is preserved. The tests provide no power-loss durability,
 authenticated rollback guarantee, physical safety certification or byte-size
 upper bound.
+
+
+## v0.1.14 checkpoint lineage and external witness (2026-11-05)
+
+Command: `PYTHONPATH=src python3 -m pytest -q`.
+
+**498 tests passed** (405 baseline + 35 lineage + 58 witness).
+New tests cover 16 deterministic randomized ancestry histories, all historical
+schemas, append-only continuity, equal-clock
+operations, policy/window/budget installation, no-op and clock-only rollback,
+divergent forks, different devices, forged retroactive entries, damaged
+snapshots, read-only CLI, HMAC changes and wrong keys, malformed receipts,
+authentic but stale generation claims, independent root mismatch, owner-only
+key-file loading and archive-only inspection.
+
+The HMAC is a software-only witness integration example. Trusted keys, external
+monotonic generation management, real power-failure evidence, actual recovery
+and compaction remain unimplemented and unproven.

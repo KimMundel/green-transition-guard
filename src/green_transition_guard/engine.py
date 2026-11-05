@@ -323,6 +323,22 @@ class TransitionGuard:
             _validate_payload(payload)
             return build_checkpoint_preflight(payload)
 
+    def compare_checkpoint_lineage(self, archive_path: str | Path):
+        """Compare complete archived history against the current live journal.
+
+        The output is diagnostic only: even an archive that appears newer is
+        not a trusted recovery source without independent freshness evidence.
+        """
+        from .experimental_archive import archive_sibling_path, read_checkpoint_archive
+        from .experimental_recovery import compare_recovery_lineage
+
+        path = archive_sibling_path(self.store.path.absolute(), archive_path)
+        with self.store.lock():
+            current = self.store.read()
+            _validate_payload(current)
+            archive = read_checkpoint_archive(path)
+            return compare_recovery_lineage(archive._archive["source_snapshot"], current)
+
     def create_checkpoint_archive(self, archive_path: str | Path):
         """Persist a complete-history replay archive candidate, leaving live state unchanged.
 
