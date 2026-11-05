@@ -16,6 +16,7 @@ class Reason(StrEnum):
     REQUEST_ID_COLLISION = "request-id-collision"
     CLOCK_REGRESSION = "clock-regression"
     STALE_REVISION = "stale-revision"
+    STALE_POLICY_REVISION = "stale-policy-revision"
     UNKNOWN_STATE = "unknown-state"
     UNSUPPORTED_TRANSITION = "unsupported-transition"
     MIN_DWELL = "min-dwell"

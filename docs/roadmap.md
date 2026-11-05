@@ -19,7 +19,7 @@
 - [x] Research clock evidence contract and uncertainty tests (experimental)
 - [x] Integrate bounded time evidence with simulated physical-edge reconciliation (v0.1.3)
 - [ ] Implement authenticated clock source and reliable real cross-reboot evidence
-- [ ] Policy upgrade/migration without bypassing historical quotas
+- [x] Implement history-preserving simulated policy epochs and migration (v0.1.8); authenticated physical rollouts remain open
 - [ ] Bound state size using provably safe history compaction
 - [ ] Analyze how missed external transitions affect quota guarantees
 - [ ] Extend property-based tests with Hypothesis and independent oracle
@@ -114,3 +114,16 @@ realistic clock and failure assumptions.
       a specific filesystem and hardware platform.
 - [ ] Add fault-injection at process termination, transport duplication, and
       external physical-edge source failures.
+
+
+## v0.1.8 policy epoch work
+
+- [x] Keep schema-1 journals readable, migrate atomically to schema 2 on first
+  explicit policy update; record every policy epoch with an event revision cutoff.
+- [x] Revalidate historical edges under the active policy at the time; apply
+  new quota/window/dwell/interval to retained history going forward.
+- [x] Add policy revision compare-and-swap, idempotent update IDs, request
+  preconditions, exact timestamp/cutoff validation and recovery tests.
+- [ ] Design authorized policy rollout and anti-rollback for a real device;
+  guarantee safety with pending physical operations before any hardware use.
+- [ ] Bound journal and epoch size without losing quota or replay guarantees.
