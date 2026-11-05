@@ -10,6 +10,7 @@ from typing import Any
 
 from .model import Decision, Policy, Reason, positive_int
 from .experimental_retention import QuotaRetentionView, build_quota_retention_view
+from .experimental_checkpoint import CheckpointPreflight, build_checkpoint_preflight
 from .storage import InvalidSnapshot, SnapshotStore
 
 
@@ -265,6 +266,17 @@ class TransitionGuard:
                     payload["window_ceiling"]["max_window_ms"] if payload["schema"] == 3 else None
                 ),
             )
+
+    def checkpoint_preflight(self) -> CheckpointPreflight:
+        """Read-only preview bound to the current complete validated snapshot.
+
+        No data is archived, compacted, or deleted. The index is detached and
+        must never be treated as authoritative after a journal mutation.
+        """
+        with self.store.lock():
+            payload = self.store.read()
+            _validate_payload(payload)
+            return build_checkpoint_preflight(payload)
 
     def seal_window_ceiling(
         self,

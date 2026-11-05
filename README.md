@@ -1,4 +1,4 @@
-# GREEN Transition Guard - experimental v0.1.10
+# GREEN Transition Guard - experimental v0.1.11
 
 An **independent, unendorsed** reference simulation for evaluating power-state
 transition frequency and dwell constraints relevant to the IETF GREEN work.
@@ -311,3 +311,22 @@ For a bound at least as large as the sealed ceiling, retention-plan reports
 no journal data is deleted. See [`docs/window-ceiling.md`](docs/window-ceiling.md).
 This is experimental single-host software enforcement, without authenticated
 anti-rollback, power-loss proof, or physical-device controls.
+
+
+## v0.1.11 — replay-aware checkpoint preflight (read-only)
+
+`green-guard checkpoint-plan --store device.guard.json` builds a deterministic
+report from a fully validated journal under the existing file lock. It includes
+source snapshot and event/policy-chain digests, a snapshot-bound exact replay-ID
+commitment, the last-transition interval anchor, and a quota-expired prefix
+count **only when a future window ceiling is sealed**.
+
+`TransitionGuard.checkpoint_preflight().replay` also supports exact identity
+probes for simulated transitions, no-ops, policy updates and the one-time window
+seal. The index exists in memory and is discarded after use; it cannot replace
+historical IDs after compaction. The report includes no raw request IDs.
+
+**`journal_compaction_enabled` remains `false`.** No checkpoint is committed,
+and no journal entry is pruned. See
+[`docs/checkpoint-preflight.md`](docs/checkpoint-preflight.md) for replay
+semantics, remaining durability requirements and limitations.

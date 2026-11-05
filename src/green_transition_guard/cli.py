@@ -34,6 +34,8 @@ def main() -> int:
     retention = sub.add_parser("retention-plan", help="read-only quota-history projection; never deletes events")
     retention.add_argument("--store", required=True)
     retention.add_argument("--max-window-ms", type=int, required=True)
+    checkpoint = sub.add_parser("checkpoint-plan", help="read-only replay and checkpoint preflight")
+    checkpoint.add_argument("--store", required=True)
     seal = sub.add_parser("seal-window", help="one-way durable bound for future policy windows")
     seal.add_argument("--store", required=True)
     seal.add_argument("--max-window-ms", type=int, required=True)
@@ -58,6 +60,8 @@ def main() -> int:
                 out = guard.quota_retention_view(
                     max_future_window_ms=args.max_window_ms
                 ).to_dict()
+            elif args.cmd == "checkpoint-plan":
+                out = guard.checkpoint_preflight().to_dict()
             elif args.cmd == "seal-window":
                 ceiling = guard.seal_window_ceiling(
                     max_future_window_ms=args.max_window_ms,
