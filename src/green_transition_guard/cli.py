@@ -31,6 +31,9 @@ def main() -> int:
     update.add_argument("--update-id", required=True, help="unique idempotency key")
     update.add_argument("--time-ms", type=int, required=True)
     update.add_argument("--expected-policy-revision", type=int, required=True)
+    retention = sub.add_parser("retention-plan", help="read-only quota-history projection; never deletes events")
+    retention.add_argument("--store", required=True)
+    retention.add_argument("--max-window-ms", type=int, required=True)
     args = parser.parse_args()
     try:
         if args.cmd == "init":
@@ -45,6 +48,10 @@ def main() -> int:
             guard = TransitionGuard.open(args.store)
             if args.cmd == "status":
                 out = guard.status()
+            elif args.cmd == "retention-plan":
+                out = guard.quota_retention_view(
+                    max_future_window_ms=args.max_window_ms
+                ).to_dict()
             elif args.cmd == "update-policy":
                 with open(args.policy, encoding="utf-8") as f:
                     new_policy = Policy.from_dict(json.load(f))

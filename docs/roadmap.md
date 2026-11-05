@@ -127,3 +127,15 @@ realistic clock and failure assumptions.
 - [ ] Design authorized policy rollout and anti-rollback for a real device;
   guarantee safety with pending physical operations before any hardware use.
 - [ ] Bound journal and epoch size without losing quota or replay guarantees.
+
+## v0.1.9 compaction prerequisites
+
+- [x] Formalize quota-expired prefix under a *hypothetically enforced* maximum
+  future window and monotonic time; verify boundary equality and migrations.
+- [x] Add a fail-closed, read-only retention inspector and independent
+  randomized quota oracle; the journal remains completely unchanged.
+- [ ] Persist and enforce the future window ceiling before pruning any event.
+- [ ] Specify replay/ID tombstones and historical policy-chain checkpoints.
+- [ ] Bound accepted event volume and handle saturation fail closed.
+- [ ] Prove crash-consistent checkpoint installation, archive integrity,
+  and recovery without silently resetting quotas.

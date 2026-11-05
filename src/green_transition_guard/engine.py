@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from .model import Decision, Policy, Reason, positive_int
+from .experimental_retention import QuotaRetentionView, build_quota_retention_view
 from .storage import InvalidSnapshot, SnapshotStore
 
 
@@ -202,6 +203,24 @@ class TransitionGuard:
                 "initial_policy": payload["initial_policy"] if payload["schema"] == 2 else payload["policy"],
                 "updates": payload["policy_updates"] if payload["schema"] == 2 else [],
             })
+
+    def quota_retention_view(self, *, max_future_window_ms: int) -> QuotaRetentionView:
+        """Read-only analysis of a quota-expired prefix under a hypothetical cap.
+
+        No events or request IDs are removed. A persisted, enforced future
+        window ceiling and a safe replay/history strategy are prerequisites
+        for any actual journal compaction.
+        """
+        positive_int(max_future_window_ms, "max_future_window_ms", allow_zero=False)
+        with self.store.lock():
+            payload = self.store.read()
+            policy = _validate_payload(payload)
+            if policy.window_ms > max_future_window_ms:
+                raise GuardError("retention ceiling is below the active policy window")
+            return build_quota_retention_view(
+                payload["events"], as_of_ms=payload["last_checked_ms"],
+                max_future_window_ms=max_future_window_ms,
+            )
 
     def update_policy(
         self,

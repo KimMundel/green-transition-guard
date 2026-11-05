@@ -1,4 +1,4 @@
-# GREEN Transition Guard - experimental v0.1.8
+# GREEN Transition Guard - experimental v0.1.9
 
 An **independent, unendorsed** reference simulation for evaluating power-state
 transition frequency and dwell constraints relevant to the IETF GREEN work.
@@ -275,3 +275,15 @@ one to schema 2; older readers cannot open it afterward. See
 migration constraints, fail-closed behavior, and production limitations.
 This is an unauthenticated simulation API; live hardware updates are out of
 scope.
+
+## v0.1.9 — read-only retention analysis
+
+`green-guard retention-plan --store device.guard.json --max-window-ms 60000`
+reports how many historical accepted transitions would be quota-irrelevant
+**if** future policy windows were durably capped at the supplied bound.
+Exact left-boundary, timestamp, replay and policy migration behavior is tested
+against the full journal; `journal_compaction_enabled` is always `false`.
+The current guard permits unrestricted policy-window upgrades, so **no events
+or IDs may be deleted using this report**. See
+[`docs/quota-retention-proof.md`](docs/quota-retention-proof.md) for the proof,
+unresolved replay/history obligations and scope of the experimental API.
