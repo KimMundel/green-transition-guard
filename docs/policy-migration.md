@@ -90,3 +90,13 @@ existing events. Sample times above are illustrative only.
   deliberately unaffected.
 - There is no cross-device synchronization or distributed consensus. The
   history, update log and deduplication keys remain unbounded.
+
+
+## v0.1.10 window ceiling addendum
+
+Policy updates on a schema-3 sealed journal are limited to `window_ms` at or
+below the persisted `window_ceiling.max_window_ms`, even across restarts.
+Schema-1/2 journals remain readable and can be sealed explicitly; old policy
+epochs are retained and validated under their original rules. Schema 3 cannot
+be read by v0.1.9 or earlier. See `docs/window-ceiling.md` for the immutable
+seal operation and its limits. Physical operations remain unaffected.

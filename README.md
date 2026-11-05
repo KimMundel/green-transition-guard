@@ -1,4 +1,4 @@
-# GREEN Transition Guard - experimental v0.1.9
+# GREEN Transition Guard - experimental v0.1.10
 
 An **independent, unendorsed** reference simulation for evaluating power-state
 transition frequency and dwell constraints relevant to the IETF GREEN work.
@@ -287,3 +287,27 @@ The current guard permits unrestricted policy-window upgrades, so **no events
 or IDs may be deleted using this report**. See
 [`docs/quota-retention-proof.md`](docs/quota-retention-proof.md) for the proof,
 unresolved replay/history obligations and scope of the experimental API.
+
+
+## v0.1.10 — one-way durable policy-window ceiling
+
+`TransitionGuard.seal_window_ceiling()` installs an immutable, journal-backed
+maximum for future `Policy.window_ms` values. The explicit operation records
+an idempotency key, monotonic timestamp, and event/policy revision cutoffs;
+legacy schema-1 and schema-2 journals migrate to schema 3 without losing
+history or request IDs. After sealing, `update_policy()` rejects any new
+window above the bound, including after reopening the journal.
+
+```bash
+green-guard seal-window --store device.guard.json \
+  --max-window-ms 60000 --install-id ceiling-001 \
+  --time-ms 123456 --expected-policy-revision 0
+
+green-guard retention-plan --store device.guard.json --max-window-ms 60000
+```
+
+For a bound at least as large as the sealed ceiling, retention-plan reports
+`retention_bound_enforced: true`. `journal_compaction_enabled` stays `false`;
+no journal data is deleted. See [`docs/window-ceiling.md`](docs/window-ceiling.md).
+This is experimental single-host software enforcement, without authenticated
+anti-rollback, power-loss proof, or physical-device controls.

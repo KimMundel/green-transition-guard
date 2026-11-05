@@ -7,9 +7,11 @@
 for potential durable history compaction. It does not modify, delete, archive
 or rewrite events, no-op entries, policy epochs or request IDs.
 
-The `max_future_window_ms` value is a **hypothetical contract supplied by the
-caller**. The guard does not persist or enforce it. Therefore, the output
-**does not authorize deletion** of any journal content.
+`max_future_window_ms` is the analysis bound. On a legacy journal it remains
+hypothetical. Since v0.1.10, a separate `seal-window` operation can persist an
+immutable maximum for future policy windows. The report indicates when the
+requested analysis bound is at least that sealed maximum; the output **still
+does not authorize deletion** of any journal content.
 
 ## Window proof
 
@@ -39,14 +41,16 @@ windows exceeding `Wmax` rather than making unsound estimates.
 
 The plan is computed under the same per-file lock and snapshot validation as
 normal guard reads. It is a detached view; future policy changes do not alter
-that view's bounds. A later policy window larger than `Wmax` is **allowed** by
-the existing guard and consequently invalidates this hypothetical premise.
+that view's bounds. A later policy window larger than `Wmax` can invalidate
+an **unsealed** or narrower-than-seal analysis. A view only reports
+`retention_bound_enforced: true` when the journal's sealed maximum does not
+exceed `Wmax`.
 
 ## Remaining obligations before any disk compaction
 
-1. **Persist and enforce a maximum future window.** Policy migration currently
-   allows unrestricted window increases. If an old event is dropped and the
-   window later grows, the quota can be bypassed.
+1. **Persist and enforce a maximum future window.** Available as the optional,
+   one-way v0.1.10 schema-3 seal. Legacy schemas and analyses requesting a
+   narrower bound remain unprotected. Authentic rollback resistance is open.
 2. **Keep last-transition time.** A new policy may raise `min_interval_ms`
    arbitrarily. The most recent accepted event is needed even if quota-expired.
    State-entry time is needed for dwell constraints.
@@ -80,9 +84,11 @@ green-guard retention-plan \
   --max-window-ms 60000
 ```
 
-`expired_for_quota` is an **analytical count** under the hypothetical window
-ceiling. `journal_compaction_enabled` is always `false`. The output deliberately
-lists unsatisfied deletion prerequisites. No persistent format changes occur.
+`expired_for_quota` is an **analytical count** under the requested window
+ceiling. `retention_bound_enforced` reports whether this software journal
+has sealed a ceiling no larger than the requested bound.
+`journal_compaction_enabled` is always `false`. The output deliberately
+lists unsatisfied deletion prerequisites and makes no persistent changes.
 
 ## Validation
 

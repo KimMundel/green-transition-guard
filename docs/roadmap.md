@@ -134,8 +134,21 @@ realistic clock and failure assumptions.
   future window and monotonic time; verify boundary equality and migrations.
 - [x] Add a fail-closed, read-only retention inspector and independent
   randomized quota oracle; the journal remains completely unchanged.
-- [ ] Persist and enforce the future window ceiling before pruning any event.
+- [x] Persist and enforce future policy-window ceiling (optional schema-3 seal, v0.1.10); rollback and compaction remain open.
 - [ ] Specify replay/ID tombstones and historical policy-chain checkpoints.
 - [ ] Bound accepted event volume and handle saturation fail closed.
 - [ ] Prove crash-consistent checkpoint installation, archive integrity,
   and recovery without silently resetting quotas.
+
+
+## v0.1.10 enforced retention-bound prerequisite
+
+- [x] Persist a one-way future policy-window ceiling in schema 3 while
+      preserving legacy event/no-op history and policy epochs.
+- [x] Reject new policy windows above the seal; validate sealing cutoffs,
+      replay/collision keys, corruption and restart behavior.
+- [x] Distinguish enforced versus hypothetical retention projections.
+- [ ] Establish authenticated, rollback-resistant storage and clock evidence.
+- [ ] Preserve replay IDs, historical state/epoch proofs and interval anchors
+      across any planned journal compaction.
+- [ ] Prove bounded operation volume and crash-safe checkpoint installation.

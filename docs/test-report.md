@@ -182,3 +182,18 @@ with 240 random histories and 4,800 timestamp/window probes.
 No durable history compaction is performed. The proposed maximum future window
 is hypothetical and cannot be used to justify deletion until a versioned,
 durable enforcement contract and replay/history checkpoint design are added.
+
+
+## v0.1.10 persisted future-window ceiling (2026-11-05)
+
+Command: `PYTHONPATH=src python3 -m pytest -q`.
+
+**315 tests passed** (275 baseline + 40 new). New tests exercise schema-1/2
+upgrades to schema 3, later policy ceiling enforcement, older epoch validity,
+request-ID uniqueness, exact idempotent installation replay, policy revision
+preconditions, corruption despite recomputed checksums, simultaneous timestamps,
+legacy replay, read-only retention signal, CLI, and before/after replacement
+exceptions. Existing randomized quota-retention oracle tests still pass.
+
+The tests use an in-process POSIX simulation. The seal has no hardware,
+trusted clock, authenticated rollback protection, or real power-loss validation.
