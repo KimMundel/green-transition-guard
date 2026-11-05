@@ -169,3 +169,31 @@ realistic clock and failure assumptions.
       verification before deleting any history.
 - [ ] Bound journal/ID volume with fail-closed saturation and add real crash,
       rollback and hardware validation.
+
+
+## v0.1.12 create-only complete-history archive
+
+- [x] Persist an exact replay-capable full journal candidate using atomic
+  POSIX no-replace publication under the existing writer lock.
+- [x] Verify archived source, epoch chain, replay index commitment and manifest
+  independently; detect stale source generations without trusting the archive.
+- [x] Inject pre/post-publish I/O failures, corruptions, and simultaneous
+  exports; report explicit inspection/reconciliation requirements.
+- [ ] Establish independently trusted checkpoint freshness, monotonic
+  anti-rollback root and measured filesystem power-loss behavior.
+- [ ] Bound operation volume and prove crash-safe activation of a compacted
+  journal retaining exact replay and policy-chain continuity.
+
+## v0.1.13 optional durable operation budget
+
+- [x] Require sealed policy window before installing one-way schema-4 budget.
+- [x] Count events, no-ops, policy epochs and both installation IDs together;
+  reject new accepted operations when the installed cap is reached.
+- [x] Preserve exact replay and collision semantics after saturation, with
+  durable cutoffs and fault-injection/concurrency tests.
+- [x] Include budget identity in checkpoint preflight and complete-history
+  archive verification.
+- [ ] Bound serialized journal **bytes**, including arbitrary policy contents;
+  accepted-identity count alone is insufficient for a fixed storage budget.
+- [ ] Develop authenticated, rollback-resistant checkpoint activation and
+  exact historical replay/state guarantees before any physical pruning.

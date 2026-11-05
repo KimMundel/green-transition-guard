@@ -1,4 +1,4 @@
-# GREEN Transition Guard - experimental v0.1.11
+# GREEN Transition Guard - experimental v0.1.13
 
 An **independent, unendorsed** reference simulation for evaluating power-state
 transition frequency and dwell constraints relevant to the IETF GREEN work.
@@ -330,3 +330,36 @@ historical IDs after compaction. The report includes no raw request IDs.
 and no journal entry is pruned. See
 [`docs/checkpoint-preflight.md`](docs/checkpoint-preflight.md) for replay
 semantics, remaining durability requirements and limitations.
+
+
+## v0.1.12 — create-only checkpoint archive candidates
+
+`checkpoint-export`, `checkpoint-verify`, and `checkpoint-inspect` preserve and
+verify a **complete, exact-replay journal copy** in a separate create-only
+checksum-wrapped archive. Exports use an atomic exclusive POSIX hardlink, and
+verification replays the archived schema/history and recomputes its manifest.
+The CLI detects a changed live generation; archived request IDs are omitted
+from summary output (the archive file itself contains them).
+
+The live journal remains authoritative. Archives are unauthenticated, may
+become stale, and have no certified power-loss or anti-rollback guarantee.
+**Compaction remains disabled.** See
+[`docs/checkpoint-archive.md`](docs/checkpoint-archive.md).
+
+## v0.1.13 — durable operation identity ceiling (opt-in)
+
+After sealing a future policy window, a separate one-way `seal-budget` command
+can cap the **total count** of accepted operation identities in schema 4.
+Saturation rejects new transitions and no-ops with `journal-capacity`, and
+blocks new policy updates. Replays and collision checks still consult every
+historical ID. The complete journal and checkpoint archive remain intact.
+
+```bash
+green-guard seal-budget --store device.guard.json \
+  --max-identities 1000 --install-id budget-001 \
+  --time-ms 123457 --expected-policy-revision 0
+```
+
+The count ceiling is voluntary and does **not** establish a fixed byte-size or
+rollback-resistant storage bound. Compaction remains disabled. See
+[`docs/operation-budget.md`](docs/operation-budget.md).

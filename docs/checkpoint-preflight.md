@@ -72,3 +72,21 @@ of the simulator's `status()` output; request IDs themselves stay in memory.
 The digest is unkeyed and has no confidentiality or authenticity guarantee.
 
 Tests: `tests/test_checkpoint_preflight.py`. No real device was accessed.
+
+
+## v0.1.12 archive extension
+
+The preflight manifest can now be preserved together with a complete journal
+copy in a create-only, checksum-wrapped sibling archive. Verification reconstructs
+the exact ReplayIndex from the archived history and checks the manifest and
+current-generation digest. Standalone inspection can validate a historical
+archive when the live journal is missing, without proving that it is the newest
+generation. This retains unbounded source history; pruning remains unavailable.
+See `docs/checkpoint-archive.md` for commands and recovery limitations.
+
+## v0.1.13 budget identity compatibility
+
+The exact in-memory replay index now also covers schema-4 operation-budget
+installation IDs. The preflight manifest includes `operation_budget_max` (or
+`null` on earlier schemas), and the index can probe budget replay/collision
+semantics. No historical IDs are discarded.

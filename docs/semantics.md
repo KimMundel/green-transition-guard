@@ -106,3 +106,10 @@ policies and validates the policy at sealing plus all later epochs. Earlier
 epoch rules remain valid. No event, no-op, or request ID is removed. Logical
 compaction remains disabled pending replay and checkpoint guarantees.
 See `docs/window-ceiling.md`.
+
+## v0.1.13 opt-in count saturation
+
+Schema 4 optionally caps committed operation identities after the window seal.
+At cap, new requests that would record transitions or no-ops fail with the
+stable `journal-capacity` reason. Existing replay IDs remain usable; clock
+observations may still update the journal. See `docs/operation-budget.md`.

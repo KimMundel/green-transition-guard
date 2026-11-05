@@ -60,6 +60,14 @@ class ReplayIndex:
             return "replay"
         return "collision"
 
+    def probe_operation_budget(self, install_id: str, max_total_ids: int) -> str:
+        record = self._records.get(install_id)
+        if record is None:
+            return "unknown"
+        if record.kind == "operation-budget" and type(max_total_ids) is int and record.expected == max_total_ids:
+            return "replay"
+        return "collision"
+
     def probe_window_seal(self, install_id: str, max_window_ms: int) -> str:
         record = self._records.get(install_id)
         if record is None:
@@ -85,9 +93,13 @@ def build_replay_index(payload: Mapping[str, Any]) -> ReplayIndex:
     if payload["schema"] >= 2:
         for update in payload["policy_updates"]:
             add(update["id"], ReplayRecord("policy-update", canonical_bytes(update["policy"]).decode("ascii")))
-    if payload["schema"] == 3:
+    if payload["schema"] >= 3:
         seal = payload["window_ceiling"]
         add(seal["id"], ReplayRecord("window-seal", seal["max_window_ms"]))
+
+    if payload["schema"] == 4:
+        budget = payload["operation_budget"]
+        add(budget["id"], ReplayRecord("operation-budget", budget["max_total_ids"]))
 
     serializable = [
         {"id": key, "kind": rec.kind, "expected": rec.expected, "event_id": rec.event_id}
@@ -113,7 +125,7 @@ def build_checkpoint_preflight(payload: Mapping[str, Any]) -> CheckpointPrefligh
     events = payload["events"]
     updates = payload["policy_updates"] if payload["schema"] >= 2 else []
     initial_policy = payload["initial_policy"] if payload["schema"] >= 2 else payload["policy"]
-    seal = payload["window_ceiling"] if payload["schema"] == 3 else None
+    seal = payload["window_ceiling"] if payload["schema"] >= 3 else None
     as_of = payload["last_checked_ms"]
     # This prefix is quota-expired under a SEALED future-window ceiling only.
     # Replay, interval, policy-epoch and crash-recovery obligations still block
@@ -132,6 +144,9 @@ def build_checkpoint_preflight(payload: Mapping[str, Any]) -> CheckpointPrefligh
         "entered_ms": payload["entered_ms"],
         "last_transition_ms": times[-1] if times else None,
         "sealed_window_ceiling_ms": seal["max_window_ms"] if seal else None,
+        "operation_budget_max": (
+            payload["operation_budget"]["max_total_ids"] if payload["schema"] == 4 else None
+        ),
         "quota_expired_prefix_events": expired,
         "quota_retained_suffix_events": len(events) - expired,
         "event_prefix_sha256": _digest(events[:expired]),
