@@ -7,3 +7,5 @@ dist/
 build/
 .coverage
 htmlcov/
+*.checkpoint*.json
+*.archive.json

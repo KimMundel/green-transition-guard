@@ -212,3 +212,36 @@ and a randomized replay comparison against real simulated guard decisions.
 The checkpoint preflight is read-only. SHA-256 is an unkeyed content commitment,
 not an authenticated rollback-resistant proof. No actual history deletion,
 archival, real power-loss testing, or physical hardware experiment was done.
+
+
+## v0.1.12 create-only replay archive tests (2026-11-05)
+
+Command: `PYTHONPATH=src python3 -m pytest -q`.
+
+**372 tests passed** (333 baseline + 39 new). Covers schema 1/2/3 archive
+exports, independent regeneration of replay/epoch manifest, request-ID
+privacy in CLI summaries, replay and collision checks, immutable-by-API
+no-clobber behavior, symlink and invalid-path rejection, concurrent exports,
+source staleness, offline inspection, recomputed-checksum tampering, temporary
+FD cleanup, injected file-sync and partial-write failures, post-link/dir-sync
+uncertainty, and CLI nonzero exit on stale archives.
+
+Tests are POSIX in-process simulations. They establish neither physical
+filesystem power-loss guarantees nor trusted archive provenance or rollback
+protection; the guard continues to use only the full live journal.
+
+## v0.1.13 accepted-identity budget tests (2026-11-05)
+
+Command: `PYTHONPATH=src python3 -m pytest -q`.
+
+**405 tests passed** (372 baseline + 33 new). Exercises explicit schema-3 to
+schema-4 conversion, exact budget counts including both seals, full-journal
+replay after saturation, request/policy rejection at capacity, stale revisions,
+ID collisions, legacy preservation, before/after-replacement failure recovery,
+checksummed corruptions, independent archive verification, CLI semantics, and
+simultaneous process writers contending for the last available identity slot.
+
+This bounds the number of accepted identities in **opt-in** schema-4 simulations
+only; source history is preserved. The tests provide no power-loss durability,
+authenticated rollback guarantee, physical safety certification or byte-size
+upper bound.

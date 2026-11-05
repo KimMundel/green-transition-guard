@@ -22,6 +22,7 @@ class Reason(StrEnum):
     MIN_DWELL = "min-dwell"
     MIN_INTERVAL = "min-interval"
     RATE_LIMIT = "rate-limit"
+    JOURNAL_CAPACITY = "journal-capacity"
 
 
 def positive_int(value: Any, name: str, *, allow_zero: bool = True) -> int:

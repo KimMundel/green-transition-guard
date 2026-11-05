@@ -36,12 +36,26 @@ def main() -> int:
     retention.add_argument("--max-window-ms", type=int, required=True)
     checkpoint = sub.add_parser("checkpoint-plan", help="read-only replay and checkpoint preflight")
     checkpoint.add_argument("--store", required=True)
+    inspect = sub.add_parser("checkpoint-inspect", help="independently inspect archived history")
+    inspect.add_argument("--archive", required=True)
+    archive = sub.add_parser("checkpoint-export", help="create-only complete-history archive; no compaction")
+    archive.add_argument("--store", required=True)
+    archive.add_argument("--archive", required=True, help="absolute sibling path for immutable archive")
+    verify = sub.add_parser("checkpoint-verify", help="verify checkpoint archive and current generation")
+    verify.add_argument("--store", required=True)
+    verify.add_argument("--archive", required=True)
     seal = sub.add_parser("seal-window", help="one-way durable bound for future policy windows")
     seal.add_argument("--store", required=True)
     seal.add_argument("--max-window-ms", type=int, required=True)
     seal.add_argument("--install-id", required=True)
     seal.add_argument("--time-ms", type=int, required=True)
     seal.add_argument("--expected-policy-revision", type=int, required=True)
+    budget = sub.add_parser("seal-budget", help="one-way limit on accepted operation identities")
+    budget.add_argument("--store", required=True)
+    budget.add_argument("--max-identities", type=int, required=True)
+    budget.add_argument("--install-id", required=True)
+    budget.add_argument("--time-ms", type=int, required=True)
+    budget.add_argument("--expected-policy-revision", type=int, required=True)
     args = parser.parse_args()
     try:
         if args.cmd == "init":
@@ -52,6 +66,9 @@ def main() -> int:
                 initial_state=args.state, entered_at_ms=args.time_ms,
             )
             out = guard.status()
+        elif args.cmd == "checkpoint-inspect":
+            from .experimental_archive import inspect_checkpoint_archive
+            out = inspect_checkpoint_archive(args.archive).to_dict()
         else:
             guard = TransitionGuard.open(args.store)
             if args.cmd == "status":
@@ -62,6 +79,16 @@ def main() -> int:
                 ).to_dict()
             elif args.cmd == "checkpoint-plan":
                 out = guard.checkpoint_preflight().to_dict()
+            elif args.cmd == "checkpoint-export":
+                out = guard.create_checkpoint_archive(args.archive).to_dict()
+            elif args.cmd == "checkpoint-verify":
+                out = guard.verify_checkpoint_archive(args.archive).to_dict()
+            elif args.cmd == "seal-budget":
+                total = guard.seal_operation_budget(
+                    max_total_ids=args.max_identities, install_id=args.install_id,
+                    at_ms=args.time_ms, expected_policy_revision=args.expected_policy_revision,
+                )
+                out = {"operation_budget_max": total, "status": guard.status()}
             elif args.cmd == "seal-window":
                 ceiling = guard.seal_window_ceiling(
                     max_future_window_ms=args.max_window_ms,
@@ -84,7 +111,7 @@ def main() -> int:
                                     expected_revision=args.expected_revision,
                                     expected_policy_revision=args.expected_policy_revision).to_dict()
         print(json.dumps(out, indent=2, sort_keys=True))
-        return 0
+        return (3 if args.cmd == "checkpoint-verify" and not out["matches_current_journal"] else 0)
     except (OSError, ValueError, RuntimeError) as exc:
         print(f"ERROR: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 2

@@ -26,12 +26,14 @@ def _validate_payload(p: dict[str, Any]) -> Policy:
     The active policy still evaluates the entire retained transition history.
     """
     required = {"schema", "device_id", "policy", "initial_state", "initial_entered_ms", "state", "entered_ms", "last_checked_ms", "revision", "events", "noops"}
-    if not isinstance(p, dict) or type(p.get("schema")) is not int or p["schema"] not in (1, 2, 3):
+    if not isinstance(p, dict) or type(p.get("schema")) is not int or p["schema"] not in (1, 2, 3, 4):
         raise InvalidSnapshot("unknown schema or fields")
     schema = p["schema"]
     expected_fields = required if schema == 1 else required | {"initial_policy", "policy_updates"}
-    if schema == 3:
+    if schema >= 3:
         expected_fields = expected_fields | {"window_ceiling"}
+    if schema == 4:
+        expected_fields = expected_fields | {"operation_budget"}
     if set(p) != expected_fields:
         raise InvalidSnapshot("unknown schema or fields")
     try:
@@ -125,7 +127,7 @@ def _validate_payload(p: dict[str, Any]) -> Policy:
             if entry["target"] != state_at_revision or not (low <= t <= high):
                 raise ValueError("inconsistent noop history")
 
-        if schema == 3:
+        if schema >= 3:
             # The seal is anchored to BOTH event and policy revision cutoffs.
             # Consequently the policy active at sealing and every later policy
             # are constrained, while older epochs may have used larger windows.
@@ -160,6 +162,40 @@ def _validate_payload(p: dict[str, Any]) -> Policy:
                 Policy.from_dict(u["policy"]).window_ms > ceiling for u in updates[pc:]
             ):
                 raise ValueError("policy window violates durable ceiling")
+
+        if schema == 4:
+            # A budget seal follows the window seal and bounds the total
+            # identity count. Its event/no-op/policy cutoffs must be consistent
+            # with the persisted monotonic sequence across the seal.
+            budget = p["operation_budget"]
+            if not isinstance(budget, dict) or set(budget) != {
+                "id", "at_ms", "max_total_ids", "after_event_seq",
+                "after_noop_count", "after_policy_revision",
+            }:
+                raise ValueError("invalid operation budget")
+            budget_id = budget["id"]
+            if (not isinstance(budget_id, str) or not 1 <= len(budget_id) <= 256
+                    or budget_id in request_ids or budget_id == seal_id):
+                raise ValueError("duplicate or invalid budget ID")
+            capacity = positive_int(budget["max_total_ids"], "max_total_ids", allow_zero=False)
+            timestamp = positive_int(budget["at_ms"], "operation budget time")
+            bec = positive_int(budget["after_event_seq"], "budget event cutoff")
+            bnc = positive_int(budget["after_noop_count"], "budget noop cutoff")
+            bpc = positive_int(budget["after_policy_revision"], "budget policy cutoff")
+            if (bec > revision or bnc > len(noops) or bpc > len(updates)
+                    or timestamp < seal_time or timestamp > checked
+                    or bec < ec or bpc < pc):
+                raise ValueError("invalid operation budget cutoffs")
+            for collection, cutoff, time_key in (
+                (events, bec, "at_ms"), (noops, bnc, "at_ms"),
+                (updates, bpc, "at_ms"),
+            ):
+                lower = initial if cutoff == 0 else collection[cutoff - 1][time_key]
+                upper = checked if cutoff == len(collection) else collection[cutoff][time_key]
+                if not lower <= timestamp <= upper:
+                    raise ValueError("operation budget conflicts with timeline")
+            if len(events) + len(noops) + len(updates) + 2 > capacity:
+                raise ValueError("operation budget exceeded")
     except (ValueError, TypeError, KeyError, IndexError) as exc:
         raise InvalidSnapshot("invalid snapshot contents; fail closed") from exc
     return policy
@@ -224,7 +260,16 @@ class TransitionGuard:
                 "policy": payload["policy"],
                 "policy_revision": len(payload["policy_updates"]) if payload["schema"] >= 2 else 0,
                 "window_ceiling_ms": (
-                    payload["window_ceiling"]["max_window_ms"] if payload["schema"] == 3 else None
+                    payload["window_ceiling"]["max_window_ms"] if payload["schema"] >= 3 else None
+                ),
+                "total_identities": (
+                    len(payload["events"]) + len(payload["noops"])
+                    + (len(payload["policy_updates"]) if payload["schema"] >= 2 else 0)
+                    + (1 if payload["schema"] >= 3 else 0)
+                    + (1 if payload["schema"] == 4 else 0)
+                ),
+                "operation_budget_max": (
+                    payload["operation_budget"]["max_total_ids"] if payload["schema"] == 4 else None
                 ),
             }
 
@@ -263,7 +308,7 @@ class TransitionGuard:
                 payload["events"], as_of_ms=payload["last_checked_ms"],
                 max_future_window_ms=max_future_window_ms,
                 enforced_ceiling_ms=(
-                    payload["window_ceiling"]["max_window_ms"] if payload["schema"] == 3 else None
+                    payload["window_ceiling"]["max_window_ms"] if payload["schema"] >= 3 else None
                 ),
             )
 
@@ -277,6 +322,86 @@ class TransitionGuard:
             payload = self.store.read()
             _validate_payload(payload)
             return build_checkpoint_preflight(payload)
+
+    def create_checkpoint_archive(self, archive_path: str | Path):
+        """Persist a complete-history replay archive candidate, leaving live state unchanged.
+
+        Each archive is created once under the journal lock; errors can leave
+        an ambiguous archive requiring explicit verification. Compaction stays
+        disabled. The archive cannot authorize an operation or restore history.
+        """
+        from .experimental_archive import archive_sibling_path, create_checkpoint_archive
+
+        path = archive_sibling_path(self.store.path.absolute(), archive_path)
+        with self.store.lock():
+            payload = self.store.read()
+            _validate_payload(payload)
+            return create_checkpoint_archive(path, payload)
+
+    def verify_checkpoint_archive(self, archive_path: str | Path):
+        """Verify archived replay material and flag stale source generations."""
+        from .experimental_archive import archive_sibling_path, read_checkpoint_archive
+
+        path = archive_sibling_path(self.store.path.absolute(), archive_path)
+        with self.store.lock():
+            payload = self.store.read()
+            _validate_payload(payload)
+            return read_checkpoint_archive(path, payload)
+
+    def seal_operation_budget(
+        self, *, max_total_ids: int, install_id: str, at_ms: int,
+        expected_policy_revision: int,
+    ) -> int:
+        """One-way cap on all durable operation identities (simulation only).
+
+        Requires a prior window seal. The cap includes transitions, no-ops,
+        policy updates, the window seal, and the budget seal itself. All
+        existing identities survive. Saturation blocks new accepted actions
+        while allowing exact idempotent replays and clock observations.
+        """
+        positive_int(max_total_ids, "max_total_ids", allow_zero=False)
+        positive_int(at_ms, "at_ms")
+        positive_int(expected_policy_revision, "expected_policy_revision")
+        if not isinstance(install_id, str) or not 1 <= len(install_id) <= 256:
+            raise ValueError("install_id must contain 1..256 characters")
+        with self.store.lock():
+            p = self.store.read()
+            _validate_payload(p)
+            if at_ms < p["last_checked_ms"]:
+                raise GuardError("operation budget clock regression")
+            if p["schema"] == 4:
+                prior = p["operation_budget"]
+                if install_id != prior["id"] or max_total_ids != prior["max_total_ids"]:
+                    raise GuardError("operation budget already sealed or ID collision")
+                p["last_checked_ms"] = at_ms
+                self.store.save(p)
+                return max_total_ids
+            if p["schema"] != 3:
+                raise GuardError("seal window ceiling before operation budget")
+            if install_id == p["window_ceiling"]["id"] or any(
+                e["request_id"] == install_id for e in p["events"]
+            ) or any(n["request_id"] == install_id for n in p["noops"]) or any(
+                u["id"] == install_id for u in p["policy_updates"]
+            ):
+                raise GuardError("operation budget ID collision")
+            if expected_policy_revision != len(p["policy_updates"]):
+                raise GuardError("stale policy revision")
+            used = len(p["events"]) + len(p["noops"]) + len(p["policy_updates"]) + 2
+            if used > max_total_ids:
+                raise GuardError("operation budget below existing identity count")
+            p["schema"] = 4
+            p["operation_budget"] = {
+                "id": install_id,
+                "at_ms": at_ms,
+                "max_total_ids": max_total_ids,
+                "after_event_seq": p["revision"],
+                "after_noop_count": len(p["noops"]),
+                "after_policy_revision": len(p["policy_updates"]),
+            }
+            p["last_checked_ms"] = at_ms
+            _validate_payload(p)
+            self.store.save(p)
+            return max_total_ids
 
     def seal_window_ceiling(
         self,
@@ -302,7 +427,7 @@ class TransitionGuard:
             policy = _validate_payload(p)
             if at_ms < p["last_checked_ms"]:
                 raise GuardError("window ceiling clock regression")
-            if p["schema"] == 3:
+            if p["schema"] >= 3:
                 seal = p["window_ceiling"]
                 if install_id != seal["id"]:
                     raise GuardError("window ceiling already sealed")
@@ -312,7 +437,7 @@ class TransitionGuard:
                 p["last_checked_ms"] = at_ms
                 self.store.save(p)
                 return max_future_window_ms
-            updates = p["policy_updates"] if p["schema"] == 2 else []
+            updates = p["policy_updates"] if p["schema"] >= 2 else []
             if any(e["request_id"] == install_id for e in p["events"]) or any(
                 n["request_id"] == install_id for n in p["noops"]
             ) or any(u["id"] == install_id for u in updates):
@@ -365,8 +490,10 @@ class TransitionGuard:
             if at_ms < p["last_checked_ms"]:
                 raise GuardError("policy update clock regression")
             updates = p["policy_updates"] if p["schema"] >= 2 else []
-            if p["schema"] == 3 and update_id == p["window_ceiling"]["id"]:
+            if p["schema"] >= 3 and update_id == p["window_ceiling"]["id"]:
                 raise GuardError("policy update ID collision with window ceiling")
+            if p["schema"] == 4 and update_id == p["operation_budget"]["id"]:
+                raise GuardError("policy update ID collision with operation budget")
             for update in updates:
                 if update["id"] == update_id:
                     if update["policy"] != policy_dict:
@@ -383,8 +510,13 @@ class TransitionGuard:
                 raise GuardError("stale policy revision")
             if new_policy.states != current_policy.states:
                 raise GuardError("state identifiers/order must remain unchanged")
-            if p["schema"] == 3 and new_policy.window_ms > p["window_ceiling"]["max_window_ms"]:
+            if p["schema"] >= 3 and new_policy.window_ms > p["window_ceiling"]["max_window_ms"]:
                 raise GuardError("policy window exceeds sealed ceiling")
+            if p["schema"] == 4 and (
+                len(p["events"]) + len(p["noops"]) + len(updates) + 2
+                >= p["operation_budget"]["max_total_ids"]
+            ):
+                raise GuardError("operation budget exhausted")
             if p["schema"] == 1:
                 p["schema"] = 2
                 p["initial_policy"] = deepcopy(p["policy"])
@@ -454,7 +586,9 @@ class TransitionGuard:
 
             if p["schema"] >= 2 and any(u["id"] == request_id for u in p["policy_updates"]):
                 return denied(Reason.REQUEST_ID_COLLISION)
-            if p["schema"] == 3 and request_id == p["window_ceiling"]["id"]:
+            if p["schema"] >= 3 and request_id == p["window_ceiling"]["id"]:
+                return denied(Reason.REQUEST_ID_COLLISION)
+            if p["schema"] == 4 and request_id == p["operation_budget"]["id"]:
                 return denied(Reason.REQUEST_ID_COLLISION)
             if expected_revision is not None and expected_revision != revision:
                 return denied(Reason.STALE_REVISION)
@@ -465,6 +599,11 @@ class TransitionGuard:
             if target not in policy.states:
                 return denied(Reason.UNKNOWN_STATE)
             if target == current:
+                if p["schema"] == 4 and (
+                    len(p["events"]) + len(p["noops"]) + len(p["policy_updates"]) + 2
+                    >= p["operation_budget"]["max_total_ids"]
+                ):
+                    return denied(Reason.JOURNAL_CAPACITY)
                 p["noops"].append({
                     "request_id": request_id, "target": target,
                     "at_ms": at_ms, "revision": revision,
@@ -497,6 +636,12 @@ class TransitionGuard:
                 # constraints would expire at the current observed history.
                 retry_at = None if any(t is None for _, t in retry) else max(t for _, t in retry if t is not None)
                 return denied(retry[0][0], retry_at)
+
+            if p["schema"] == 4 and (
+                len(p["events"]) + len(p["noops"]) + len(p["policy_updates"]) + 2
+                >= p["operation_budget"]["max_total_ids"]
+            ):
+                return denied(Reason.JOURNAL_CAPACITY)
 
             seq = revision + 1
             event_id = f"{p['device_id']}:{seq}"
