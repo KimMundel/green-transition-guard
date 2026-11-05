@@ -168,3 +168,17 @@ post-replace uncertainty, CLI behavior and malformed epoch ledger rejection.
 These are deterministic single-host simulated tests. No external device,
 actual power-loss testing, trust anchor or authenticated policy rollout was
 used or validated.
+
+## v0.1.9 quota-retention preflight (2026-11-05)
+
+Command: `PYTHONPATH=src python3 -m pytest -q`.
+
+**275 tests passed** (252 baseline + 23 new test cases). The new cases exercise
+read-only quota-prefix analysis, exact left-boundary expiration, repeated
+timestamps, release-time parity, corrupt storage, policy epoch upgrades,
+replay consistency, CLI inspection, and a deterministic independent oracle
+with 240 random histories and 4,800 timestamp/window probes.
+
+No durable history compaction is performed. The proposed maximum future window
+is hypothetical and cannot be used to justify deletion until a versioned,
+durable enforcement contract and replay/history checkpoint design are added.
