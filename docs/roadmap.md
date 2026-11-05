@@ -152,3 +152,20 @@ realistic clock and failure assumptions.
 - [ ] Preserve replay IDs, historical state/epoch proofs and interval anchors
       across any planned journal compaction.
 - [ ] Prove bounded operation volume and crash-safe checkpoint installation.
+
+
+## v0.1.11 replay and checkpoint preflight
+
+- [x] Add exact, detached replay identity probes for transition, no-op,
+      policy-update and one-time seal IDs across schema 1/2/3.
+- [x] Add a read-only, snapshot-bound checkpoint manifest with complete-history
+      source hash, prefix/suffix commitments, policy chain digest, replay-index
+      digest, state/time/interval anchors and sealed quota prefix count.
+- [x] Exercise identity collisions, digest stability/staleness, migration,
+      sealed/unsealed boundaries, fail-closed reads and CLI with regressions.
+- [ ] Specify durable replay tombstones/archives and exact old-ID behavior after
+      pruning; an index digest alone cannot answer replay queries.
+- [ ] Design transactional checkpoint installation and authoritative archive
+      verification before deleting any history.
+- [ ] Bound journal/ID volume with fail-closed saturation and add real crash,
+      rollback and hardware validation.

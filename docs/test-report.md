@@ -197,3 +197,18 @@ exceptions. Existing randomized quota-retention oracle tests still pass.
 
 The tests use an in-process POSIX simulation. The seal has no hardware,
 trusted clock, authenticated rollback protection, or real power-loss validation.
+
+
+## v0.1.11 exact replay and checkpoint preflight (2026-11-05)
+
+Command: `PYTHONPATH=src python3 -m pytest -q`.
+
+**333 tests passed** (315 baseline + 18 new), including schema 1/2/3 replay
+identities, cross-kind collisions, legacy no-op/transition replays, policy
+changes, one-way window seal, exact quota left boundary, detached views,
+snapshot digests, stale manifests, corrupt checksummed journals, read-only CLI,
+and a randomized replay comparison against real simulated guard decisions.
+
+The checkpoint preflight is read-only. SHA-256 is an unkeyed content commitment,
+not an authenticated rollback-resistant proof. No actual history deletion,
+archival, real power-loss testing, or physical hardware experiment was done.
