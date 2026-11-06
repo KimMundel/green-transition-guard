@@ -5,6 +5,7 @@ It cannot establish which file is trusted, current, or power-loss durable.
 No journal is activated, altered, recovered, or compacted here.
 """
 
+from copy import deepcopy
 from dataclasses import dataclass, field
 from hashlib import sha256
 from typing import Any, Mapping
@@ -38,20 +39,43 @@ def _is_ancestor(older: Mapping[str, Any], newer: Mapping[str, Any]) -> bool:
     )) or _initial_policy(older) != _initial_policy(newer):
         return False
     old_clock = older["last_checked_ms"]
+    old_revision = older["revision"]
+    old_policy_count = len(_entries(older, "policy_updates"))
+    old_noop_count = len(older["noops"])
     for name in ("events", "noops", "policy_updates"):
         before, after = _entries(older, name), _entries(newer, name)
         if len(before) > len(after) or before != after[:len(before)]:
             return False
-        if any(item["at_ms"] < old_clock for item in after[len(before):]):
+        appended = after[len(before):]
+        if any(item["at_ms"] < old_clock for item in appended):
+            return False
+        if name == "noops":
+            # A newly written no-op observes the current event revision.
+            # Exact timestamps alone permit retroactive inserts at a tie.
+            if any(item["revision"] < old_revision for item in appended):
+                return False
+            if any(a["at_ms"] > b["at_ms"] or a["revision"] > b["revision"]
+                   for a, b in zip(appended, appended[1:])):
+                return False
+        if name == "policy_updates" and any(
+            item["after_event_seq"] < old_revision for item in appended
+        ):
             return False
     if older["schema"] >= 3 and older["window_ceiling"] != newer["window_ceiling"]:
         return False
-    if older["schema"] < 3 <= newer["schema"] and newer["window_ceiling"]["at_ms"] < old_clock:
-        return False
+    if older["schema"] < 3 <= newer["schema"]:
+        seal = newer["window_ceiling"]
+        if (seal["at_ms"] < old_clock or seal["after_event_seq"] < old_revision
+                or seal["after_policy_revision"] < old_policy_count):
+            return False
     if older["schema"] == 4 and older["operation_budget"] != newer["operation_budget"]:
         return False
-    if older["schema"] < 4 <= newer["schema"] and newer["operation_budget"]["at_ms"] < old_clock:
-        return False
+    if older["schema"] < 4 <= newer["schema"]:
+        budget = newer["operation_budget"]
+        if (budget["at_ms"] < old_clock or budget["after_event_seq"] < old_revision
+                or budget["after_noop_count"] < old_noop_count
+                or budget["after_policy_revision"] < old_policy_count):
+            return False
     return True
 
 
@@ -91,6 +115,9 @@ def compare_recovery_lineage(archived: dict[str, Any], current: dict[str, Any]) 
     """Revalidate inputs before comparing; refuse corrupt or partial history."""
     from .engine import _validate_payload
 
+    # Detach before validation and classification, so later caller mutations
+    # cannot change the hashes reported by the same comparison result.
+    archived, current = deepcopy(archived), deepcopy(current)
     _validate_payload(archived)
     _validate_payload(current)
     if archived["device_id"] != current["device_id"]:
