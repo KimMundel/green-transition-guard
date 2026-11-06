@@ -1,0 +1,93 @@
+{
+  "cases": [
+    {
+      "case": "idle",
+      "expected": "valid",
+      "file": "valid-idle.json",
+      "sha256": "1529d1b68054fcec4deaaaf08762c7f1adb61a9daaf117777c67d96b9032bf29"
+    },
+    {
+      "case": "prepared",
+      "expected": "valid",
+      "file": "valid-prepared.json",
+      "sha256": "369be4c438f0017f99e8541ad6a9209dc6fe8819af6e313b1ae821d1b03aec8d"
+    },
+    {
+      "case": "acknowledged",
+      "expected": "valid",
+      "file": "valid-acknowledged.json",
+      "sha256": "277d6924608c7dee84df88a7397d9cb94fe5eb03f709a3c84d702b36267d0611"
+    },
+    {
+      "case": "reconciled",
+      "expected": "valid",
+      "file": "valid-reconciled.json",
+      "sha256": "b757c831d85b2a89e4caa8459b259c4a5924fd4de0584671541f1ab498269a79"
+    },
+    {
+      "case": "quarantined",
+      "expected": "valid",
+      "file": "valid-quarantined.json",
+      "sha256": "aad6d870768ae78353e4c78d3e27a888c1c6343d656d554215d9f415ab43a774"
+    },
+    {
+      "case": "invalid-phase",
+      "expected": "invalid",
+      "file": "invalid-phase.json",
+      "sha256": "66844bb250c1c5c6c2be287a2fffe759b6002feadf2c261f815058c1e79fe9c5"
+    },
+    {
+      "case": "invalid-ledger-enum",
+      "expected": "invalid",
+      "file": "invalid-ledger-enum.json",
+      "sha256": "e831f8e6287b4d916d23a404e1f5e2f7f36b3b5de3a4df53dc7765af75c7e495"
+    },
+    {
+      "case": "unknown-identity",
+      "expected": "invalid",
+      "file": "invalid-unknown-identity.json",
+      "sha256": "4420380c13107626d7aa2199f6d4eaa9a3bb1d36db61b113191223b7b6bddc3b"
+    },
+    {
+      "case": "invalid-uint64",
+      "expected": "invalid",
+      "file": "invalid-uint64.json",
+      "sha256": "a328f3e184be27259f57dbcada996c7f4ada02e64686b34f765896ae1b5128b8"
+    },
+    {
+      "case": "zero-window",
+      "expected": "invalid",
+      "file": "invalid-zero-window.json",
+      "sha256": "a3fce3bdfdc7383cee20161d130973fab2d1663ddde23e07719a81bb9642eba6"
+    },
+    {
+      "case": "unknown-augmented-leaf",
+      "expected": "invalid",
+      "file": "invalid-unknown-augmented-leaf.json",
+      "sha256": "2773d6e139ed99f3b3bca6e9aef4892f8ee363d3e396f2d5ba77675008603b5a"
+    },
+    {
+      "case": "missing-energy-object-key",
+      "expected": "invalid",
+      "file": "invalid-missing-energy-object-key.json",
+      "sha256": "f1b7d611dbe55ae96d04c1b60c853de479716256c90bf6f792da142c6416657c"
+    },
+    {
+      "case": "duplicate-dwell-key",
+      "expected": "invalid",
+      "file": "invalid-duplicate-dwell-key.json",
+      "sha256": "14b4dfb5fb66278b085360a701de4ce024b3afc85f77e72f34df7773062e40a2"
+    },
+    {
+      "case": "invalid-augmentation-namespace",
+      "expected": "invalid",
+      "file": "invalid-augmentation-namespace.json",
+      "sha256": "d5b5b2a0d6f584158d9d92e83c2e529ff3014c2f3b03e898bf3c733e951c7549"
+    }
+  ],
+  "draft": "draft-ietf-green-power-and-energy-yang-05",
+  "experimental_module": "green-transition-guard-experimental@2026-11-04.yang",
+  "format": "green-yang-instance-corpus-1",
+  "schema_validation": "unverified-by-fixture-generation",
+  "source": "synthetic EvidenceHardwareExperiment projection"
+}
