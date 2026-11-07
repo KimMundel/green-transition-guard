@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "id": "ephotonics-c1y-808-5ms-20hz",
+      "source_url": "https://ephotonics.com/product/808nm-3000w-vertical-laser-diode-stack/",
+      "source_locator": "Specifications table and FAQs, High Peak Mode, checked 2026-11-07",
+      "product_model": "C1Y-808F-3000Q-VH(1-20)",
+      "component_kind": "industrial-qcw-laser-diode-stack",
+      "event": "industrial-qcw-optical-shot",
+      "claim_kind": "mode-dependent-expected-lifetime-shots",
+      "pulse_width_ms": 5,
+      "pulse_frequency_hz": 20,
+      "duty_cycle_percent": 10,
+      "case_temperature_c": 22,
+      "table_peak_power_w": 3000,
+      "summary_peak_power_w": 3000,
+      "expected_shots": 30000000
+    },
+    {
+      "id": "ephotonics-c1y-808-20ms-5hz",
+      "source_url": "https://ephotonics.com/product/808nm-3000w-vertical-laser-diode-stack/",
+      "source_locator": "Specifications table and FAQs, Short Pulse Mode, checked 2026-11-07",
+      "product_model": "C1Y-808F-3000Q-VH(1-20)",
+      "component_kind": "industrial-qcw-laser-diode-stack",
+      "event": "industrial-qcw-optical-shot",
+      "claim_kind": "mode-dependent-expected-lifetime-shots",
+      "pulse_width_ms": 20,
+      "pulse_frequency_hz": 5,
+      "duty_cycle_percent": 10,
+      "case_temperature_c": 22,
+      "table_peak_power_w": 3000,
+      "summary_peak_power_w": 3000,
+      "expected_shots": 15000000
+    },
+    {
+      "id": "ephotonics-c1y-808-100ms-2hz-conflicting-power",
+      "source_url": "https://ephotonics.com/product/808nm-3000w-vertical-laser-diode-stack/",
+      "source_locator": "Specifications table versus Key features: Long Pulse power differs, checked 2026-11-07",
+      "product_model": "C1Y-808F-3000Q-VH(1-20)",
+      "component_kind": "industrial-qcw-laser-diode-stack",
+      "event": "industrial-qcw-optical-shot",
+      "claim_kind": "mode-dependent-expected-lifetime-shots",
+      "pulse_width_ms": 100,
+      "pulse_frequency_hz": 2,
+      "duty_cycle_percent": 20,
+      "case_temperature_c": 22,
+      "table_peak_power_w": 1500,
+      "summary_peak_power_w": 1200,
+      "expected_shots": 15000000
+    }
+  ]
+}

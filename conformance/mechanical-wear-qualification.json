@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "id": "sfp-dd-msa-4.2-module-mating-durability",
+      "source_url": "https://sfp-dd.com/wp-content/uploads/2020/08/SFP-DDrev4.2.pdf",
+      "source_revision": "SFP-DD MSA Hardware Specification Rev. 4.2, 2020-08-17",
+      "source_locator": "Appendix A.1, Table 13, PDF page 60, Rated Durability Cycles",
+      "authority": "industry-consortium-specification",
+      "form_factor": "SFP-DD",
+      "component": "module",
+      "event": "module-mating-unmating-cycle",
+      "claim_kind": "rated-mechanical-durability-cycles",
+      "rated_cycles": 50
+    },
+    {
+      "id": "sfp-dd-msa-4.2-connector-cage-mating-durability",
+      "source_url": "https://sfp-dd.com/wp-content/uploads/2020/08/SFP-DDrev4.2.pdf",
+      "source_revision": "SFP-DD MSA Hardware Specification Rev. 4.2, 2020-08-17",
+      "source_locator": "Appendix A.1, Table 13, PDF page 60, Rated Durability Cycles",
+      "authority": "industry-consortium-specification",
+      "form_factor": "SFP-DD",
+      "component": "connector-cage",
+      "event": "module-mating-unmating-cycle",
+      "claim_kind": "rated-mechanical-durability-cycles",
+      "rated_cycles": 100
+    }
+  ]
+}

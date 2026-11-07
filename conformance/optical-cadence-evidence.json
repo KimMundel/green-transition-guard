@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "id": "glenair-050-315-tx-disable-assert-spacing",
+      "source_url": "https://www.glenair.com/optoelectronic/pcb-mount-transceivers-transmitters-and-receivers/pdf/050-315.pdf",
+      "source_revision": "Glenair 050-315 Product Brief, Rev N, 2017-03-02",
+      "source_locator": "Page 7, Transmitter Section, Tx_Disable pin 10",
+      "authority": "manufacturer-product-brief",
+      "platform": "Glenair 050-315",
+      "component": "850-nm-VCSEL-transmitter",
+      "operation": "Tx_Disable pin 10",
+      "event": "tx-disable-assert",
+      "purpose": "fault-reset-signal",
+      "kind": "recommended-min-repeat",
+      "minimum": 10,
+      "maximum": null,
+      "unit": "milliseconds"
+    },
+    {
+      "id": "cisco-ncs2000-svo-als-recovery-pulse-range",
+      "source_url": "https://www.cisco.com/c/en/us/td/docs/optical/ncs2000/123/b-svo-config-guide-r12-3/provision-psm-cards.html",
+      "source_revision": "Cisco NCS 2000 SVO Configuration Guide 12.3.x, updated 2023-09-19",
+      "source_locator": "Provision Optical Safety, Table 4, Recovery Pulse Interval",
+      "authority": "vendor-config-guide",
+      "platform": "Cisco NCS 2000 SVO 12.3.x",
+      "component": "ALS-capable-optical-interface",
+      "operation": "automatic-laser-shutdown-recovery",
+      "event": "als-recovery-pulse-start",
+      "purpose": "automatic-laser-safety",
+      "kind": "documented-period-range",
+      "minimum": 60,
+      "maximum": 300,
+      "unit": "seconds"
+    }
+  ]
+}
