@@ -1,97 +1,36 @@
-# Experimental GREEN YANG augmentation (v0.1.4)
+# Experimental GREEN YANG augmentation
 
-Status: **design and unit-test experiment; NOT YANG-compiled, standards-approved,
-manufacturer-certified, or deployable**. Checked against the named nodes in
-`draft-ietf-green-power-and-energy-yang-05` (published 2026-11-02, embedded
-YANG revision `2026-11-01`) on 2026-11-04.
+The module at [`yang/green-transition-guard-experimental@2026-11-04.yang`](../yang/green-transition-guard-experimental@2026-11-04.yang) adds a read-only `transition-safety` container to the operational Energy Object in `draft-ietf-green-power-and-energy-yang-05`. It uses an example namespace and is separate from the GREEN drafts.
 
-## Why this is a narrow addition
+The existing Power and Energy model has two relevant paths:
 
-The existing `ietf-power-and-energy` operational list is:
+- `/energy-control/energy-objects/energy-object/power-state/admin`: requested power state.
+- `/energy-objects/energy-object/power-state/oper`: observed power state.
 
-`/energy-objects/energy-object` (read-only, keyed by `id`).
+The extension leaves both alone. It describes the simulator's own state: operation phase, quarantine reason, simulated ledger status, clock evidence, confirmed edge count and applied limits (dwell, interval and rolling quota).
 
-The same draft defines power-state `oper` in that operational list and
-power-state `admin` in the separate `/energy-control` configuration tree.
-The experiment **does not augment or alter** those leaves, power caps,
-measurement accuracy, energy readings or Energy Object identifiers.
+These fields describe what the local experiment believes. They are not manufacturer capabilities. `confirmed-edge-count` depends on the simulated ledger, and the example limits were chosen for tests.
 
-Its YANG file, `yang/green-transition-guard-experimental@2026-11-04.yang`,
-augments only `/eo:energy-objects/eo:energy-object` with a read-only
-`transition-safety` container. The namespace is under `urn:example:` to avoid
-representing this as an IETF-registered model. No writable leaves or RPCs.
+State identities need an explicit mapping from toy names such as `sleep` to the YANG identities in the actual module. The projector checks mapping shape and uniqueness, and the pinned RFC 7951 fixtures exercise real schema acceptance. All `uint64` values are serialized as JSON strings, as required by RFC 7951.
 
-## Experimental data fields
+## Validation
 
-- `operation-phase`: local guard journal phase, separate from GREEN oper.
-- `quarantine-reason`: present only if automatic operations are quarantined.
-- `simulated-ledger-status`: explicit *simulation* match, pending independent
-  confirmation, or discrepancy. Does not authenticate hardware evidence.
-- `clock-evidence-kind`: local clock epoch versus caller-*asserted* absolute
-  bounds. Does not authenticate time.
-- `confirmed-edge-count`: only transitions reconciled in the local guard log.
-  In particular it excludes unreconciled physical edges and external events.
-- `applied-limits`: exact policy currently used by the simulator: minimum
-  interval, rolling-window duration, count cap and per-state dwell limits.
-  They are **fictional experiment values**, not vendor capabilities.
+On GitHub PR #8, the [Official GREEN YANG workflow](https://github.com/KimMundel/green-transition-guard/actions/runs/42316078149) passed against the published -05 sources:
 
-The list `dwell-restriction/state` uses an `identityref` based on the existing
-`eo:power-state` identity. A caller must map all toy states explicitly to
-valid official or vendor-derived identities. The Python code validates map
-shape and uniqueness, but **does not prove the identities exist**. That needs
-an actual YANG instance validator with official modules.
+- `pyang 2.7.1` and `yanglint 2.1.30` compiled the augmentation with its imported modules.
+- `yanglint` accepted five valid and rejected nine deliberately invalid RFC 7951 instances for the intended schema reasons.
+- The scripts pin the official source, extension and corpus hashes. GitHub Actions archives the source bytes and tool output for review.
 
-All YANG `uint64` values are encoded as JSON strings (RFC 7951); overflow is
-rejected rather than silently truncated.
-
-## Relation to other active GREEN work
-
-- `draft-claise-green-capability-discovery-03`: relevant for supported power
-  states, per-state power, and entry/exit time characteristics. The proposed
-  per-state *minimum residence* restriction is distinct from entry latency.
-  A normative model for manufacturer limits likely belongs alongside
-  discoverable capabilities; placement requires GREEN WG review.
-- `draft-swepcarl-green-controller-yang-00`: preliminary controller model;
-  our guard stays device-authoritative and does not duplicate controller data.
-- `draft-ietf-green-framework-03`: leaves transition-frequency safety and
-  duty-cycle limits uncovered (section 3.5.1).
-- RFC 8341/NACM and RFC 6241 + RFC 8040 remain the mechanisms for access
-  control and immediate NETCONF/RESTCONF errors. Our diagnostics do not
-  define a proprietary error transport.
-
-## Validation gate: intentionally fails closed until official sources exist
+To validate against a local set of official modules:
 
 ```bash
 python scripts/validate_yang.py --modules /path/to/official-yang-modules
 ```
 
-The directory must contain at minimum the exact published
-`ietf-power-and-energy@2026-11-01.yang` and its imported modules including
-`ietf-hardware` (RFC 8348) and `iana-power-and-energy` from the same current
-GREEN draft (plus each transitive dependency). `pyang` must be available;
-`yanglint` is run when installed. A missing compiler or dependency is
-`UNVERIFIED`, not `PASS`.
+The directory must contain the official Power and Energy YANG -05 modules and required imports. The command fails closed if required compilers or modules are missing. For the exact automated version and corpus, inspect `.github/workflows/official-yang-smoke.yml`, `scripts/official_yang_smoke.py`, and `scripts/official_yang_instance_smoke.py`.
 
-The environment used to build v0.1.4 could not fetch the official source or
-install `pyang` due to disabled outbound DNS. **Neither compilation against
-real dependencies nor live NETCONF/RESTCONF/JSON instance validation has
-been completed.** The test suite checks projection behavior and the offline
-validation gate only.
+## Remaining questions
 
-## Production blockers
+There is no physical device or live NETCONF/RESTCONF endpoint behind these instances. An implementation would still need verified limits, authoritative power-state feedback, trustworthy clock/counter semantics and authorization. The right standards placement also needs working-group feedback; the current augmentation is a way to test terminology and shapes.
 
-1. Real YANG compiler + upstream module integration and drift checks.
-2. Trusted hardware counter provenance, reset semantics and extra external
-   transitions; the simulated ledger is not attested.
-3. Validated, bounded time sources after full device power loss.
-4. Correct vendor-supplied safety limits, emergency policy and authorization.
-5. GREEN WG decisions on native module vs capability augmentation, and
-   error/reconciliation semantics.
-
-Sources:
-
-- https://datatracker.ietf.org/doc/html/draft-ietf-green-power-and-energy-yang-05
-- https://datatracker.ietf.org/doc/html/draft-claise-green-capability-discovery-03
-- https://datatracker.ietf.org/doc/html/draft-ietf-green-framework-03
-- https://datatracker.ietf.org/doc/html/draft-swepcarl-green-controller-yang-00
-- https://www.rfc-editor.org/rfc/rfc7951
+Related reading: [GREEN alignment](green-alignment.md), [RFC 7951](https://www.rfc-editor.org/rfc/rfc7951), [Framework -03](https://datatracker.ietf.org/doc/html/draft-ietf-green-framework-03).
