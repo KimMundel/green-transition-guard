@@ -64,7 +64,8 @@ def fixture_smoke(tmp_path: Path, monkeypatch) -> Path:
     return root
 
 
-def fake_runner(*, invert_case: str | None = None, signal: bool = False, version='yanglint 2.1.30'):
+def fake_runner(*, invert_case: str | None = None, signal: bool = False,
+                version='yanglint 2.1.30', override_diagnostic: tuple[str, str] | None = None):
     def execute(command, **kwargs):
         if '--version' in command:
             return subprocess.CompletedProcess(command, 0, stdout=version + '\n', stderr='')
@@ -72,8 +73,16 @@ def fake_runner(*, invert_case: str | None = None, signal: bool = False, version
         is_valid = filename.startswith('valid-')
         if invert_case == filename:
             is_valid = not is_valid
+        diagnostic = ''
+        if not is_valid:
+            for case in gate.EXPECTED_INVALID:
+                if gate.FILENAME('invalid', case) == filename:
+                    diagnostic = 'libyang err : ' + ' '.join(gate.EXPECTED_INVALID_DIAGNOSTICS[case])
+                    break
+        if override_diagnostic and filename == override_diagnostic[0]:
+            diagnostic = override_diagnostic[1]
         return subprocess.CompletedProcess(command, -9 if signal else (0 if is_valid else 1),
-                                           stdout='', stderr='synthetic diagnostic')
+                                           stdout='', stderr=diagnostic)
     return execute
 
 
@@ -100,6 +109,10 @@ def test_passing_14_case_contract(tmp_path, monkeypatch):
     result = gate.validate(root, CORPUS, REPO, which=lambda _: '/synthetic/yanglint', runner=fake_runner())
     assert len(result['cases']) == 14
     assert all(item['matched'] for item in result['cases'])
+    assert all(item['diagnostic_matched'] is True for item in result['cases']
+               if item['expected'] == 'invalid')
+    assert all(item['diagnostic_matched'] is None for item in result['cases']
+               if item['expected'] == 'valid')
     assert result['corpus_manifest_sha256'] == gate.PINNED_CORPUS_SHA256
 
 
@@ -123,6 +136,33 @@ def test_mismatched_acceptance_fails(tmp_path, monkeypatch, filename, reason):
         gate.validate(root, CORPUS, REPO, which=lambda _: '/synthetic/yanglint',
                       runner=fake_runner(invert_case=filename))
     assert exc.value.cases[-1]['matched'] is False
+
+
+@pytest.mark.parametrize('bad_diagnostic', [
+    '',
+    'libyang err : module import failed',
+    'libyang warn: Invalid enumeration value "running" /operation-phase',
+    'libyang err : Invalid enumeration value "running"\n'
+    'libyang err : /operation-phase',
+    'libyang err : Invalid enumeration value "verified-hardware" /simulated-ledger-status',
+])
+def test_negative_case_requires_its_specific_schema_error(tmp_path, monkeypatch, bad_diagnostic):
+    root = fixture_smoke(tmp_path, monkeypatch)
+    with pytest.raises(gate.ValidationMismatch, match='rejected for unexpected reason') as exc:
+        gate.validate(root, CORPUS, REPO, which=lambda _: '/synthetic/yanglint',
+                      runner=fake_runner(override_diagnostic=('invalid-phase.json', bad_diagnostic)))
+    final = exc.value.cases[-1]
+    assert final['case'] == 'invalid-phase'
+    assert final['exit_code'] == 1
+    assert final['matched'] is False
+    assert final['diagnostic_matched'] is False
+
+
+def test_case_specific_diagnostic_matcher_uses_single_error_line():
+    for case, markers in gate.EXPECTED_INVALID_DIAGNOSTICS.items():
+        assert gate.diagnostic_matches(case, 'libyang warn: ignored\nlibyang err : ' + ' '.join(markers))
+        assert not gate.diagnostic_matches(case, 'libyang err : unrelated failure')
+    assert set(gate.EXPECTED_INVALID_DIAGNOSTICS) == set(gate.EXPECTED_INVALID)
 
 
 def test_version_drift_and_missing_binary_fail_closed(tmp_path, monkeypatch):

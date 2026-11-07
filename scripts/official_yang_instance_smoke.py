@@ -32,6 +32,30 @@ FILENAME = lambda expectation, name: (
 )
 MAX_CASE_BYTES = 64_000
 
+# Bound negative controls to their intended schema failure. A nonzero exit
+# alone could be a broken import, malformed invocation, or unrelated failure.
+# Each tuple must occur on ONE libyang error line (not a generic warning).
+EXPECTED_INVALID_DIAGNOSTICS = {
+    'invalid-phase': ('Invalid enumeration value "running"', '/operation-phase'),
+    'invalid-ledger-enum': ('Invalid enumeration value "verified-hardware"', '/simulated-ledger-status'),
+    'unknown-identity': ('Invalid identityref "ietf-power-and-energy:power-state-that-does-not-exist"',
+                         '/dwell-restriction/state'),
+    'invalid-uint64': ('Value "-1" is out of type uint64', '/confirmed-edge-count'),
+    'zero-window': ('Unsatisfied range - value "0"', '/window-ms'),
+    'unknown-augmented-leaf': ('Node "hardware-attested" not found', '"transition-safety" node'),
+    'missing-energy-object-key': ('List instance is missing its key "id"', '/energy-object'),
+    'duplicate-dwell-key': ('Duplicate instance of "dwell-restriction"', '/dwell-restriction'),
+    'invalid-augmentation-namespace': ('Node "transition-safety" not found as a child of "energy-object"',
+                                       '/energy-object'),
+}
+
+
+def diagnostic_matches(case: str, stderr: str) -> bool:
+    """Require the case-specific libyang failure on a single diagnostic line."""
+    required = EXPECTED_INVALID_DIAGNOSTICS[case]
+    return any('libyang err' in line and all(token in line for token in required)
+               for line in stderr.splitlines())
+
 
 class EvidenceError(ValueError):
     """A true instance-validation result cannot be established."""
@@ -178,13 +202,20 @@ def validate(smoke: Path, corpus: Path, repo: Path, *, which=shutil.which,
             raise EvidenceError(f'yanglint process interrupted: {case}')
         accepted = outcome.returncode == 0
         expected_acceptance = expectation == 'valid'
+        diagnostic_ok = (diagnostic_matches(case, outcome.stderr or '')
+                         if not expected_acceptance and not accepted else None)
+        matched = accepted == expected_acceptance and (expected_acceptance or diagnostic_ok is True)
         entry = {'case': case, 'expected': expectation, 'file': filename,
                  'instance_sha256': fingerprint, 'exit_code': outcome.returncode,
-                 'matched': accepted == expected_acceptance,
+                 'matched': matched, 'diagnostic_matched': diagnostic_ok,
                  'stderr': (outcome.stderr or '')[:1200]}
         records.append(entry)
-        if accepted != expected_acceptance:
-            raise ValidationMismatch(f'yanglint {"rejected valid" if expected_acceptance else "accepted invalid"} case: {case}', records)
+        if not matched:
+            if accepted != expected_acceptance:
+                reason = 'rejected valid' if expected_acceptance else 'accepted invalid'
+            else:
+                reason = 'rejected for unexpected reason'
+            raise ValidationMismatch(f'yanglint {reason} case: {case}', records)
     return {'cases': records, 'yanglint_version': version_text,
             'source_draft_sha256': compilation['draft_sha256'],
             'extension_sha256': compilation['extension_sha256'],
