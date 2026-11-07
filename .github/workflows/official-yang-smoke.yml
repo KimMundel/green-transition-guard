@@ -1,0 +1,50 @@
+name: Official GREEN YANG compiler smoke
+on:
+  pull_request:
+    paths:
+      - .github/workflows/official-yang-smoke.yml
+      - scripts/official_yang_smoke.py
+      - scripts/official_yang_instance_smoke.py
+      - tests/test_official_yang_instance_smoke.py
+      - conformance/yang-instances/**
+      - yang/green-transition-guard-experimental@2026-11-04.yang
+  workflow_dispatch:
+jobs:
+  official-yang-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install independent real YANG compilers
+        run: |
+          python -m pip install pyang==2.7.1
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends libyang2-tools
+      - name: Compile against pinned published IETF GREEN -05
+        run: python scripts/official_yang_smoke.py --output "$RUNNER_TEMP/official-yang-smoke"
+      - name: Validate the 14 pinned RFC 7951 instances with real yanglint
+        run: |
+          python scripts/official_yang_instance_smoke.py \
+            --smoke-output "$RUNNER_TEMP/official-yang-smoke" \
+            --output "$RUNNER_TEMP/official-yang-instance-smoke"
+      - name: Retain 14-case instance evidence on success or failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: official-yang-instance-evidence
+          path: ${{ runner.temp }}/official-yang-instance-smoke/
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Retain source bytes and true compiler status on success or failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: official-yang-smoke-evidence
+          path: ${{ runner.temp }}/official-yang-smoke/
+          if-no-files-found: error
+          retention-days: 14

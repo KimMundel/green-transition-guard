@@ -1,0 +1,2 @@
+# Preserve byte-pinned GREEN instance fixtures across operating systems.
+conformance/yang-instances/*.json text eol=lf
