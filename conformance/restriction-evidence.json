@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "id": "juniper-mx204-psu-power-on-residence",
+      "source_url": "https://www.juniper.net/documentation/us/en/hardware/mx204/topics/topic-map/mx204-connecting-to-power.html",
+      "authority": "manufacturer-instruction",
+      "platform": "MX204",
+      "component": "power-supply",
+      "operation": "physical-psu-power-switch",
+      "state": "on",
+      "bound": "min-residence",
+      "value": 60000,
+      "unit": "milliseconds",
+      "value_status": "fixed",
+      "purpose": "maintenance"
+    },
+    {
+      "id": "juniper-mx204-psu-power-off-residence",
+      "source_url": "https://www.juniper.net/documentation/us/en/hardware/mx204/topics/topic-map/mx204-connecting-to-power.html",
+      "authority": "manufacturer-instruction",
+      "platform": "MX204",
+      "component": "power-supply",
+      "operation": "physical-psu-power-switch",
+      "state": "off",
+      "bound": "min-residence",
+      "value": 60000,
+      "unit": "milliseconds",
+      "value_status": "fixed",
+      "purpose": "maintenance"
+    },
+    {
+      "id": "cisco-ncs5500-optics-reported-high-mode",
+      "source_url": "https://www.cisco.com/c/en/us/td/docs/iosxr/ncs5500/interfaces/26xx/configuration/guide/b-interfaces-hardware-component-cg-ncs5500-26xx/configuring-controllers.html",
+      "authority": "device-observation",
+      "platform": "NCS-57C3-MOD-SYS",
+      "component": "optical-transceiver",
+      "operation": "optics-controller-admin-sleep",
+      "state": "high",
+      "bound": "reported-state",
+      "value": null,
+      "unit": "none",
+      "value_status": "absent",
+      "purpose": "monitoring"
+    },
+    {
+      "id": "itu-xgspon-aware-minimum-parameter",
+      "source_url": "https://www.itu.int/epublications/publication/itu-t-g-9807-1-2023-amd-1-2025-05",
+      "authority": "standard-parameter",
+      "platform": "XGS-PON",
+      "component": "ONU",
+      "operation": "olt-managed-sleep-state-machine",
+      "state": "aware",
+      "bound": "min-residence",
+      "value": null,
+      "unit": "125us-frames",
+      "value_status": "configured",
+      "purpose": "protocol-operation"
+    },
+    {
+      "id": "itu-xgspon-low-power-maximum-parameter",
+      "source_url": "https://www.itu.int/epublications/publication/itu-t-g-9807-1-2023-amd-1-2025-05",
+      "authority": "standard-parameter",
+      "platform": "XGS-PON",
+      "component": "ONU",
+      "operation": "olt-managed-sleep-state-machine",
+      "state": "low-power",
+      "bound": "max-residence",
+      "value": null,
+      "unit": "125us-frames",
+      "value_status": "configured",
+      "purpose": "protocol-operation"
+    }
+  ]
+}

@@ -9,6 +9,23 @@ The next useful result is a concrete hardware example. The current simulator can
 3. **Settle counting rules.** A request, accepted command, observed physical change, failed attempt, and autonomous transition are different events. A useful model has to state which ones count and what happens when evidence is missing.
 4. **Check the YANG experiment against feedback.** Keep the existing `admin`/`oper` meanings. Add fields only when an implementer can explain their use.
 
+## Optical evidence review (2026-11-07)
+
+The offline research now covers Cisco IOS XR optical sleep/readback, Juniper
+MX204 PSU power-procedure timing, XGS-PON state-machine intervals, Glenair
+`Tx_Disable` signal timing, Cisco ALS recovery pulses, SFP-DD mechanical
+mating qualification, and ePhotonics industrial pulsed-laser lifetime estimates.
+Each has different event, component and authority semantics.
+
+Five experimental analyzers and four small source-index corpora use synthetic
+observations and always withhold hardware authorization. The GREEN YANG
+schema remains unchanged.
+
+**Open question:** obtain a revision-specific manufacturer operational limit
+for remotely controlled telecom laser transitions, with independently defensible
+event coverage and counter continuity. Only then consider capability semantics
+with implementer review. GitHub CI is still required for this research batch.
+
 ## Already implemented on `main`
 
 - Persistent simulated transition journal; dwell, interval, and rolling-quota checks.
