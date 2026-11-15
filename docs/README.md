@@ -7,6 +7,7 @@ Start with the [repository README](../README.md) if you want to run the simulato
 - [Semantics](semantics.md): current policy and journal rules, with open questions.
 - [GREEN alignment](green-alignment.md): the parts of the active drafts we reuse and the gap being investigated.
 - [YANG experiment](yang-augmentation-experiment.md): the read-only augmentation and real schema/instance checks.
+- [GREEN -06 validation](yang-06-validation.md): independent compiler and 17-case conformance gate, preserving the -05 baseline.
 
 ## State, time, and hardware evidence
 

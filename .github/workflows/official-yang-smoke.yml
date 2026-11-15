@@ -5,13 +5,15 @@ on:
       - .github/workflows/official-yang-smoke.yml
       - scripts/official_yang_smoke.py
       - scripts/official_yang_instance_smoke.py
+      - scripts/official_yang_06_smoke.py
+      - tests/test_official_yang_06_smoke.py
       - tests/test_official_yang_instance_smoke.py
       - conformance/yang-instances/**
       - yang/green-transition-guard-experimental@2026-11-04.yang
   workflow_dispatch:
 jobs:
   official-yang-smoke:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: read
@@ -32,6 +34,18 @@ jobs:
           python scripts/official_yang_instance_smoke.py \
             --smoke-output "$RUNNER_TEMP/official-yang-smoke" \
             --output "$RUNNER_TEMP/official-yang-instance-smoke"
+      - name: Compile GREEN -06 separately and validate 17 RFC 7951 instances
+        run: |
+          python scripts/official_yang_06_smoke.py \
+            --output "$RUNNER_TEMP/official-yang-06"
+      - name: Retain GREEN -06 schema, source fingerprints, and instance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: official-yang-06-evidence
+          path: ${{ runner.temp }}/official-yang-06/
+          if-no-files-found: warn
+          retention-days: 14
       - name: Retain 14-case instance evidence on success or failure
         if: always()
         uses: actions/upload-artifact@v4
