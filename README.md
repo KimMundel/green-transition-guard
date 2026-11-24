@@ -1,6 +1,6 @@
 # GREEN Transition Guard
 
-Power saving gets less attractive if a component is cycled so often that it wears out. The [IETF GREEN use cases](https://datatracker.ietf.org/doc/html/draft-ietf-green-use-cases-02#section-2.1.4) mention this for equipment such as lasers and connectors.
+Some components need time between power-state changes; others may tolerate ordinary cycling without measurable wear. The [IETF GREEN use cases](https://datatracker.ietf.org/doc/html/draft-ietf-green-use-cases-02#section-2.1.4) mention possible damage to lasers and connectors. See the [manufacturer evidence](docs/manufacturer-transition-evidence.md) for the documented examples and their limits.
 
 This repository explores a narrow question: **how can a controller respect a device's limits on power-state changes, including after a restart or controller handover?**
 
@@ -42,24 +42,25 @@ The normal guard accepts a caller-supplied millisecond timestamp and records *ac
 
 ## What has been checked
 
-On the merged PR #8, the Linux test workflow passed **534 tests on Python 3.11 and 534 on Python 3.13**. The separate [official YANG workflow](https://github.com/KimMundel/green-transition-guard/actions/runs/42316078149) compiled the augmentation against the published GREEN Power and Energy YANG -05 dependencies with `pyang` and `yanglint`. It then checked 14 synthetic RFC 7951 instances: five accepted and nine rejected for their intended schema errors.
+At the current verified `main` commit (`21366c8`, PR #11), [GitHub Tests](https://github.com/KimMundel/green-transition-guard/actions/runs/43723062105) passed **886 tests each on Python 3.11 and Python 3.13**. The separate [GREEN YANG checks](https://github.com/KimMundel/green-transition-guard/actions/runs/43722499805) passed with the pinned `-05` schema (14 RFC 7951 cases) and a separate published `-06` schema check (17 cases).
 
 See [test evidence](docs/test-report.md) for the commands, versions, and CI links. These checks establish software behavior on the tested inputs. They say nothing about a particular device's safe cycling limits.
 
 ## Current limits
 
 - No equipment is controlled. No NETCONF/RESTCONF server is provided.
-- No manufacturer limits, authenticated hardware counters, or trustworthy cross-reboot clock have been established.
+- Some manufacturer restrictions and cycling-test results are documented, but none provides a verified, remotely discoverable optical cycling limit for the specific GREEN operation being simulated. Authenticated physical transition counters and trustworthy cross-reboot time remain unproven.
 - Local checksums detect corruption; they do not protect against an attacker replacing the journal. HMAC witness experiments require trust managed outside the device.
 - Recovery tools inspect full journals. They cannot restore or compact them safely; neither operation is enabled.
 
-The immediate research task is to find documented, real equipment restrictions and learn whether a common GREEN capability would help implementers. The experimental YANG model may change considerably after that discussion.
+The immediate research task is to find a manufacturer-supported operating restriction that a device could actually advertise, and clarify the event and counter semantics with GREEN implementers. Qualification numbers must not be copied into YANG as operating limits. The experimental YANG model may change after that discussion.
 
 ## Where to look
 
 - [Documentation index](docs/README.md) - technical notes grouped by topic
 - [Semantics](docs/semantics.md) - exact window, replay, and rejection rules
 - [GREEN alignment](docs/green-alignment.md) - overlap with current drafts and RFCs
+- [Manufacturer evidence matrix](docs/manufacturer-transition-evidence.md) - published values and their fit for a transition capability
 - [YANG experiment](docs/yang-augmentation-experiment.md) - schema and instance evidence
 - [Tests and evidence](docs/test-report.md) - reproducible checks and limitations
 - [Open work](docs/roadmap.md) - research questions and engineering dependencies

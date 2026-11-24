@@ -1,6 +1,6 @@
 # Tests and evidence
 
-This page records results for the **GitHub `main` branch after PR #8**. Older per-release test counts live in Git history. Current tests are reproducible with:
+This page records verified results through **`main` at `21366c8` (PR #11)**. Earlier test counts live in Git history. Current tests are reproducible with:
 
 ```bash
 python3 -m venv .venv
@@ -15,16 +15,16 @@ The runtime targets Linux or WSL2 because journal locking uses `fcntl`.
 
 | Check | Observed result | GitHub run |
 | --- | --- | --- |
-| Linux / Python 3.11 | 534 passed | [Tests #19](https://github.com/KimMundel/green-transition-guard/actions/runs/42316078109) |
-| Linux / Python 3.13 | 534 passed | [Tests #19](https://github.com/KimMundel/green-transition-guard/actions/runs/42316078109) |
-| GREEN YANG -05 compilation | `pyang 2.7.1` and `yanglint 2.1.30` passed | [Official GREEN YANG #4](https://github.com/KimMundel/green-transition-guard/actions/runs/42316078149) |
-| RFC 7951 JSON instances | 5 valid accepted, 9 invalid rejected for expected errors | [Official GREEN YANG #4](https://github.com/KimMundel/green-transition-guard/actions/runs/42316078149) |
+| Linux / Python 3.11 | **886 passed** | [Tests on main](https://github.com/KimMundel/green-transition-guard/actions/runs/43723062105) |
+| Linux / Python 3.13 | **886 passed** | [Tests on main](https://github.com/KimMundel/green-transition-guard/actions/runs/43723062105) |
+| Published GREEN YANG -05 | Compiler checks; 5 valid and 9 invalid RFC 7951 cases accepted/rejected as expected | [Official YANG on PR #11](https://github.com/KimMundel/green-transition-guard/actions/runs/43722499805) |
+| Published GREEN YANG -06 | Separate compiler check; **17** RFC 7951 cases validated | [Official YANG on PR #11](https://github.com/KimMundel/green-transition-guard/actions/runs/43722499805) |
 
-The YANG CI job records the published draft source bytes, module fingerprints, compiler versions and stderr. It uses `draft-ietf-green-power-and-energy-yang-05` and the experimental augmentation in `yang/`. The test corpus is under `conformance/yang-instances/`, with a manifest of SHA-256 hashes. The workflow evidence artifacts have limited retention; the run and validation scripts remain available in the repository.
+The YANG workflow validates the pinned `-05` draft and experimental augmentation, then compiles `-06` separately. The `-05` corpus is pinned by hashes; the `-06` run records its source fingerprints without an independent fixed release digest. The run retains source bytes, compiler output and the instance results as short-lived artifacts. See [GREEN -06 validation](yang-06-validation.md) and the scripts for reproducibility.
 
 ## Covered behavior
 
-The Python tests exercise dwell/interval/window boundaries, request-ID replay, policy changes, journal restarts, concurrent writers, and corruption detection. Separate test suites cover simulated dispatch/acknowledgement failure, time uncertainty, storage I/O faults, archive verification, lineage comparisons and HMAC receipt handling. The YANG workflow adds parser/compiler and instance checks against actual published module dependencies.
+The Python tests exercise dwell/interval/window boundaries, request-ID replay, policy changes, journal restarts, concurrent writers, and corruption detection. Separate test suites cover simulated dispatch/acknowledgement failure, time uncertainty, storage I/O faults, archive verification, lineage comparisons, HMAC receipt handling and offline optical evidence-scope analyzers. The YANG workflow adds parser/compiler and instance checks against actual published module dependencies.
 
 Some demos can be run independently:
 
