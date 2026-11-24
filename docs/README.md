@@ -15,6 +15,7 @@ Start with the [repository README](../README.md) if you want to run the simulato
 - [Durable time](durable-time.md): time uncertainty and what cannot be established after reboot.
 - [Hardware counters](hardware-counter-provenance.md): limitations of counters as evidence of physical transitions.
 - [Vendor counter adapters](vendor-counter-adapters.md): offline diagnostics for specific Linux and NVMe sources.
+- [Manufacturer evidence matrix](manufacturer-transition-evidence.md): published values, event scope and possible use in GREEN capabilities.
 - [Optical power-mode evidence](optical-power-mode-evidence-2026-11-07.md): Cisco readback and the limits of its evidence.
 - [Restriction scope](restriction-scope-evidence.md): component-specific power, protocol and maintenance timing.
 - [Optical control cadence](optical-control-cadence.md): reset-signal and laser-safety pulse timing.
